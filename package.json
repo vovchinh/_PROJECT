@@ -1,0 +1,40 @@
+{
+  "name": "chidi-erp",
+  "private": true,
+  "version": "1.1.0",
+  "type": "module",
+  "description": "ChiDi ERP — React JavaScript and Supabase",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:db": "node scripts/test-database.mjs",
+    "test:e2e": "playwright test",
+    "check": "npm run test && npm run test:db && npm run test:operations && npm run build",
+    "format": "prettier --write src tests scripts/*.mjs *.js *.json index.html",
+    "format:check": "prettier --check src tests scripts/*.mjs *.js *.json index.html",
+    "test:builds": "node scripts/verify-builds.mjs",
+    "test:operations": "node scripts/test-operations.mjs",
+    "test:cloud-ui": "playwright test --config playwright.cloud.config.js",
+    "check:cloud": "node scripts/check-cloud.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.116.0",
+    "lucide-react": "^1.44.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
+    "@playwright/test": "^1.63.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "prettier": "3.9.6",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
+  }
+}

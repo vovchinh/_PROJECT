@@ -1,0 +1,20 @@
+erDiagram
+  WORKSPACES ||--o{ WORKSPACE_MEMBERS : has
+  AUTH_USERS ||--o{ WORKSPACE_MEMBERS : joins
+  WORKSPACES ||--o{ SUPPLIERS : owns
+  WORKSPACES ||--o{ PRODUCTS : owns
+  WORKSPACES ||--o{ WAREHOUSES : owns
+  WORKSPACES ||--o{ CASH_ACCOUNTS : owns
+  SUPPLIERS o|--o{ PRODUCTS : default_supplier
+  SUPPLIERS o|--o{ PURCHASE_RECEIPTS : supplies
+  PRODUCTS o|--o{ PURCHASE_RECEIPTS : identifies
+  WAREHOUSES o|--o{ PURCHASE_RECEIPTS : receives
+  PURCHASE_RECEIPTS ||--o{ STOCK_MOVEMENTS : posts_or_reverses
+  PRODUCTS ||--o{ STOCK_MOVEMENTS : tracks
+  WAREHOUSES ||--o{ STOCK_MOVEMENTS : locates
+  CASH_ACCOUNTS o|--o{ CASH_TRANSACTIONS : assigned_to
+  CASH_TRANSACTIONS ||--o{ CASH_MOVEMENTS : posts_or_reverses
+  CASH_ACCOUNTS ||--o{ CASH_MOVEMENTS : tracks
+  WORKSPACES ||--o{ IMPORT_BATCHES : imports
+  WORKSPACES ||--o{ AUDIT_EVENTS : records
+  WORKSPACES ||--o{ POSTING_REQUESTS_PRIVATE : deduplicates

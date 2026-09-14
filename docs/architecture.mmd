@@ -1,0 +1,61 @@
+flowchart TB
+  subgraph people["Người dùng ChiDi"]
+    owner["Chủ shop / Kế toán / Kho / Bán hàng"]
+  end
+
+  subgraph browser["Trình duyệt — React JavaScript + Vite"]
+    app["Ứng dụng nội bộ: Dashboard, danh mục, nhập hàng, thu chi, đối chiếu"]
+    repo["Lớp truy cập dữ liệu: một giao diện, hai chế độ tách biệt"]
+    demo["Demo tại máy: dữ liệu trình duyệt riêng; không đồng bộ ngầm"]
+  end
+
+  subgraph cloud["Supabase — một cơ sở dữ liệu PostgreSQL"]
+    auth["Auth: danh tính người dùng"]
+    api["Data API: đọc dữ liệu theo quyền RLS"]
+    rpc["RPC: kiểm tra quyền, khóa chứng từ, xác thực, ghi sổ nguyên tử"]
+    masters["Workspace, thành viên, SKU, nhà cung cấp, tài khoản"]
+    drafts["Chứng từ nháp + dữ liệu nguồn + vấn đề cần đối chiếu"]
+    ledgers["Sổ phát sinh kho và tiền: chỉ ghi qua nghiệp vụ máy chủ"]
+    audit["Lịch sử thao tác + dấu vết nguồn"]
+  end
+
+  subgraph future["Lộ trình tiếp theo — chưa coi là chức năng V1 đã nghiệm thu"]
+    sales["Đơn hàng, giao hàng, COD, hoàn hàng, công nợ"]
+    gl["Giá vốn FIFO, sổ cái kép, khóa kỳ, P&L, dòng tiền"]
+    growth["CRM, livestream, marketing, lương, tài sản, phân bổ"]
+    storage["Storage riêng tư: chứng từ và tệp đính kèm"]
+    outbox["Outbox: sự kiện cần gửi sau khi giao dịch thành công"]
+    worker["Hàm JavaScript máy chủ / Edge Function: webhook, retry, bí mật API"]
+    vendors["Đơn vị vận chuyển / Sàn / Ngân hàng / Hóa đơn"]
+  end
+
+  owner --> app
+  app --> repo
+  repo -->|"Chế độ demo"| demo
+  repo -->|"Chế độ online"| auth
+  repo -->|"JWT người dùng; đọc theo workspace"| api
+  repo -->|"Lưu nháp / ghi sổ qua RPC được cấp quyền"| rpc
+  auth --> api
+  auth --> rpc
+  api --> masters
+  api --> drafts
+  api --> ledgers
+  api --> audit
+  rpc --> masters
+  rpc --> drafts
+  rpc --> ledgers
+  rpc --> audit
+  sales -.-> rpc
+  gl -.-> ledgers
+  growth -.-> rpc
+  drafts -.-> storage
+  rpc -.-> outbox
+  outbox -.-> worker
+  worker -.-> vendors
+  vendors -.->|"Webhook có kiểm tra chữ ký và chống trùng"| worker
+  worker -.-> rpc
+
+  classDef now fill:#eff6ff,stroke:#2563eb,color:#172554
+  classDef later fill:#faf5ff,stroke:#9333ea,stroke-dasharray:5 5,color:#3b0764
+  class app,repo,demo,auth,api,rpc,masters,drafts,ledgers,audit now
+  class sales,gl,growth,storage,outbox,worker,vendors later

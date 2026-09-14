@@ -1,0 +1,72 @@
+erDiagram
+  WORKSPACES ||--o{ WORKSPACE_MEMBERS : has
+  AUTH_USERS ||--o{ WORKSPACE_MEMBERS : joins
+  WORKSPACES ||--o{ CUSTOMERS : owns
+  WORKSPACES ||--o{ PRODUCTS : owns
+  WORKSPACES ||--o{ WAREHOUSES : owns
+  WORKSPACES ||--o{ SALES_ORDERS : owns
+  CUSTOMERS ||--o{ SALES_ORDERS : places
+  SALES_ORDERS ||--|{ SALES_ORDER_LINES : contains
+  PRODUCTS ||--o{ SALES_ORDER_LINES : identifies
+  WAREHOUSES ||--o{ SALES_ORDER_LINES : fulfills
+  SALES_ORDERS ||--o{ SALES_EVENTS : records_actions
+  SALES_ORDER_LINES ||--o{ SALES_ALLOCATIONS : reserves_and_consumes
+  INVENTORY_LOTS ||--o{ SALES_ALLOCATIONS : supplies_original_cost
+  PURCHASE_RECEIPTS ||--o{ STOCK_MOVEMENTS : posts_or_reverses
+  PURCHASE_RECEIPTS ||--o{ INVENTORY_LOTS : creates_receipt_lot
+  SALES_EVENTS o|--o{ INVENTORY_LOTS : creates_return_lot
+  PRODUCTS ||--o{ INVENTORY_LOTS : identifies
+  WAREHOUSES ||--o{ INVENTORY_LOTS : locates
+  WORKSPACES ||--o{ INVENTORY_TIMELINE_PRIVATE : guards_dates
+  WORKSPACES ||--o{ SALES_REQUESTS_PRIVATE : deduplicates
+  WORKSPACES ||--o{ AUDIT_EVENTS : records
+
+  CUSTOMERS {
+    uuid id PK
+    uuid workspace_id FK
+    text code
+    text name
+  }
+  SALES_ORDERS {
+    uuid id PK
+    uuid workspace_id FK
+    uuid customer_id FK
+    date order_date
+    text status
+  }
+  SALES_ORDER_LINES {
+    uuid id PK
+    uuid workspace_id FK
+    uuid order_id FK
+    uuid product_id FK
+    uuid warehouse_id FK
+    bigint quantity
+    bigint unit_price
+  }
+  SALES_EVENTS {
+    uuid id PK
+    uuid workspace_id FK
+    uuid order_id FK
+    text action
+    date event_date
+    jsonb details
+  }
+  INVENTORY_LOTS {
+    uuid id PK
+    uuid workspace_id FK
+    uuid product_id FK
+    uuid warehouse_id FK
+    date available_date
+    bigint initial_quantity
+    bigint initial_cost
+  }
+  SALES_ALLOCATIONS {
+    uuid id PK
+    uuid workspace_id FK
+    uuid order_line_id FK
+    uuid lot_id FK
+    bigint allocated_quantity
+    bigint shipped_cost
+    bigint returned_quantity
+    bigint returned_cost
+  }

@@ -1,0 +1,103 @@
+erDiagram
+  WORKSPACES ||--o{ MEMBERSHIPS : has
+  AUTH_USERS ||--o{ MEMBERSHIPS : joins
+  WORKSPACES ||--o{ PRODUCTS : owns
+  WORKSPACES ||--o{ SUPPLIERS : owns
+  WORKSPACES ||--o{ CASH_ACCOUNTS : owns
+  WORKSPACES ||--o{ IMPORT_BATCHES : owns
+  IMPORT_BATCHES ||--o{ SOURCE_ROWS : preserves
+  SOURCE_ROWS ||--o{ RECONCILIATION_ISSUES : raises
+  SUPPLIERS ||--o{ PURCHASE_RECEIPTS : supplies
+  PURCHASE_RECEIPTS ||--|{ PURCHASE_LINES : contains
+  PRODUCTS ||--o{ PURCHASE_LINES : identifies
+  PURCHASE_LINES ||--o{ INVENTORY_MOVEMENTS : posts
+  CASH_ACCOUNTS ||--o{ CASH_DOCUMENTS : receives_or_pays
+  CASH_DOCUMENTS ||--o{ CASH_MOVEMENTS : posts
+  WORKSPACES ||--o{ AUDIT_EVENTS : records
+
+  WORKSPACES {
+    uuid id PK
+    text name
+    date business_opened_on
+  }
+  MEMBERSHIPS {
+    uuid workspace_id FK
+    uuid user_id FK
+    text role
+  }
+  PRODUCTS {
+    uuid id PK
+    uuid workspace_id FK
+    text sku
+    text name
+  }
+  SOURCE_ROWS {
+    uuid id PK
+    uuid batch_id FK
+    text source_record_id
+    text source_location
+    jsonb original_values
+    text fingerprint
+  }
+  PURCHASE_RECEIPTS {
+    uuid id PK
+    uuid workspace_id FK
+    uuid supplier_id FK
+    date received_on
+    text date_basis
+    text posting_status
+    text idempotency_key
+  }
+  PURCHASE_LINES {
+    uuid id PK
+    uuid workspace_id FK
+    uuid receipt_id FK
+    uuid product_id FK
+    numeric quantity
+    numeric unit_cost
+  }
+  CASH_DOCUMENTS {
+    uuid id PK
+    uuid workspace_id FK
+    uuid account_id FK
+    date transaction_on
+    text direction
+    numeric amount
+    text evidence_status
+    text posting_status
+  }
+  INVENTORY_MOVEMENTS {
+    uuid id PK
+    uuid workspace_id FK
+    uuid source_line_id FK
+    numeric quantity_delta
+    numeric value_delta
+    uuid reverses_movement_id FK
+  }
+  CASH_MOVEMENTS {
+    uuid id PK
+    uuid workspace_id FK
+    uuid source_document_id FK
+    numeric signed_amount
+    uuid reverses_movement_id FK
+  }
+
+  CUSTOMERS ||--o{ SALES_ORDERS : places
+  SALES_ORDERS ||--|{ SALES_LINES : contains
+  PRODUCTS ||--o{ SALES_LINES : sold_as
+  SALES_ORDERS ||--o{ SHIPMENTS : fulfilled_by
+  SHIPMENTS ||--o{ COD_SETTLEMENT_LINES : reconciled_by
+  COD_SETTLEMENTS ||--|{ COD_SETTLEMENT_LINES : contains
+  SALES_LINES ||--o{ RETURN_LINES : returns
+  RETURN_DOCUMENTS ||--|{ RETURN_LINES : contains
+  INVENTORY_MOVEMENTS ||--o{ FIFO_COST_ALLOCATIONS : cost_source
+  SALES_LINES ||--o{ FIFO_COST_ALLOCATIONS : consumes
+  SUPPLIER_INVOICES ||--|{ SUPPLIER_INVOICE_LINES : contains
+  PURCHASE_LINES ||--o{ INVOICE_RECEIPT_MATCHES : matched
+  SUPPLIER_INVOICE_LINES ||--o{ INVOICE_RECEIPT_MATCHES : matched
+  CASH_DOCUMENTS ||--o{ PAYMENT_ALLOCATIONS : allocates
+  SUPPLIER_INVOICES ||--o{ PAYMENT_ALLOCATIONS : settled
+  JOURNAL_ENTRIES ||--|{ JOURNAL_LINES : contains
+  GL_ACCOUNTS ||--o{ JOURNAL_LINES : classifies
+  WORKSPACES ||--o{ ACCOUNTING_PERIODS : closes
+  WORKSPACES ||--o{ OUTBOX_EVENTS : queues

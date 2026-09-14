@@ -1,0 +1,1657 @@
+<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ChiDi ERP — kiến trúc & hướng dẫn</title><style>
+*{box-sizing:border-box}body{margin:0;background:#f3f6f2;color:#273e32;font:16px/1.8 "Segoe UI",Arial,sans-serif}header{padding:32px 5vw;background:#173e31;color:#fff}header b{font-size:30px;letter-spacing:-1px}header p{margin:3px 0;color:#d7e7d8}nav{padding:13px 5vw;background:white;border-bottom:1px solid #dfe6dd;display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:2}button{font:inherit;cursor:pointer;border:1px solid #d6e2d7;border-radius:7px;padding:8px 13px;background:#fff;color:#254b37}button[aria-pressed=true],button.copy{background:#244f3b;color:white}main{max-width:1200px;margin:30px auto;padding:0 25px}article{background:white;padding:35px 45px;border:1px solid #dce4da;border-radius:12px}h1{font-size:30px;line-height:1.4}h2{margin-top:42px;font-size:24px;line-height:1.5}h3{margin-top:30px}p,li{max-width:1020px}table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow:auto;margin:22px 0}td,th{border:1px solid #d8e0d6;padding:12px 15px;text-align:left;vertical-align:top}th{background:#edf3e9}pre{background:#edf2eb;padding:18px;overflow:auto;font:13px/1.7 Consolas,monospace;border-radius:8px}code{overflow-wrap:anywhere;font-family:Consolas,monospace;font-size:.9em}a{color:#286b49;text-underline-offset:3px}img.architecture{width:100%;border-radius:10px}.copy{margin-bottom:18px}.sourcefile{border-top:1px solid #dce4da;padding-top:20px;font-size:13px}footer{text-align:center;padding:30px;color:#5d7465}.sr{position:absolute;left:-9999px}button:focus-visible,a:focus-visible{outline:3px solid #ad853b;outline-offset:3px}[hidden]{display:none!important}@media(max-width:650px){body{font-size:15px}header{padding:22px}nav{position:static;padding:12px}main{padding:0 10px;margin:14px auto}article{padding:22px 17px}h1{font-size:25px}h2{font-size:21px}}@media print{header,nav,footer,.copy,.sourcefile{display:none}body,article{background:white}main{max-width:none;margin:0;padding:0}article{border:0;padding:0}h2{break-after:avoid}pre,table,img{break-inside:avoid}}
+</style></head><body><header><b>ChiDi / không gian tài liệu ERP</b><p>Kiến trúc, hướng dẫn Supabase và prompt để tiếp tục phát triển · 11/09/2026</p></header><nav aria-label="Tài liệu"><button data-target="architecture" aria-pressed="true">Kiến trúc</button><button data-target="operations" aria-pressed="false">Bước tiếp V1.1</button><button data-target="history" aria-pressed="false">Đã thực hiện</button><button data-target="setup" aria-pressed="false">Tạo Supabase</button><button data-target="guide" aria-pressed="false">Cách sử dụng</button><button data-target="database" aria-pressed="false">Database</button><button data-target="prompt" aria-pressed="false">Prompt triển khai</button><button data-target="checks" aria-pressed="false">Kiểm tra</button><button data-target="sources" aria-pressed="false">Nguồn nghiên cứu</button></nav><main><article id="architecture" data-panel><img class="architecture" src="architecture.svg" alt="Sơ đồ kiến trúc ChiDi ERP"/><h1 id="kien-truc-chidi-online-erp">Kiến trúc ChiDi Online ERP</h1>
+<blockquote>
+<p>Cập nhật 11/09/2026: V1.1 đã thêm bộ chọn workspace, quản lý thành viên có audit/bảo vệ owner cuối cùng, báo cáo server trong cùng snapshot và bảo vệ dữ liệu phiên cũ trả về chậm. Cloud URL/key đã cấu hình và kiểm tra chỉ đọc; migration 002, Auth và nghiệm thu phiên thật còn chờ. Xem <a href="../TASKS.md">TASKS</a>, <a href="#history" data-page="history">thay đổi</a> và <a href="#operations" data-page="operations">vận hành V1.1</a>. Phần dưới giữ phân tích nền và lộ trình toàn bộ ERP; các mô tả giới hạn V1 là mốc thiết kế ban đầu.</p>
+</blockquote>
+<p>Thiết kế và phạm vi bàn giao ngày <strong>10/09/2026</strong>. Công nghệ đã chốt theo yêu cầu: <strong>JavaScript, React JS, Supabase PostgreSQL online</strong>. Tài liệu này phân biệt phần V1 đã có mã chạy được và kiến trúc đích cần phát triển để quản lý toàn bộ doanh nghiệp.</p>
+<h2 id="1-quyet-inh-thiet-ke">1. Quyết định thiết kế</h2>
+<p>ChiDi nên bắt đầu bằng <strong>một ứng dụng chia rõ phân hệ, dùng một database quan hệ</strong>. React chịu trách nhiệm màn hình và thao tác; Supabase quản lý đăng nhập và PostgreSQL; các lệnh ảnh hưởng sổ kho/sổ tiền chạy trong hàm database có kiểm tra quyền. Thiết kế này giảm số dịch vụ phải chăm sóc mà vẫn có ranh giới nghiệp vụ, chứng từ và dấu vết đủ rõ để mở rộng.</p>
+<p>“Chuyên nghiệp như doanh nghiệp lớn” trước hết là biết số liệu đến từ đâu, ai được ghi, ghi khi nào, sửa sai bằng cách nào và khôi phục được khi có sự cố. Không cần bắt đầu với hàng chục microservice, Kubernetes hoặc dashboard nhiều biểu đồ. Những công cụ đó chỉ đáng thêm khi có nhu cầu tải, tổ chức đội ngũ hoặc tích hợp cụ thể.</p>
+<p>V1 đã xây là một lát cắt chạy xuyên suốt: <strong>danh mục → chứng từ nháp → kiểm tra → ghi sổ → báo cáo → đảo nếu sai → nhật ký</strong>. Đây là nền vận hành cho nhập hàng và thu chi, chưa thay thế hệ thống kế toán đầy đủ, phần mềm hóa đơn hoặc tất cả hoạt động bán hàng.</p>
+<h2 id="2-hieu-hoat-ong-chidi-truoc-khi-chon-man-hinh">2. Hiểu hoạt động ChiDi trước khi chọn màn hình</h2>
+<p>ChiDi kinh doanh thời trang, đặc biệt jeans/shorts, bán qua livestream và kênh online. Luồng định hướng từ nội dung được cung cấp là TikTok/livestream → FLive và Zalo → chốt đơn → vận chuyển SPX/GHN/J&amp;T → giao/hoàn → tiền COD → báo cáo. Khả năng gọi API thực tế của từng nền tảng còn phụ thuộc hợp đồng, tài khoản và tài liệu tích hợp được cấp; không giả định mọi dịch vụ đều có API miễn phí sẵn dùng.</p>
+<p>Một chiếc quần có thể xuất hiện trong nhiều khâu, nhưng không vì vậy trở thành nhiều sản phẩm hay nhiều doanh thu. Một khoản chuyển tiền của hãng vận chuyển có thể gom hàng chục đơn; tiền nhận ròng còn bị trừ phí. Tách sản phẩm, đơn hàng, vận đơn, dòng đối soát và giao dịch ngân hàng giúp giải thích chênh lệch thay vì cố ép chúng vào một bảng tổng hợp.</p>
+<p>Khai trương <strong>18/08/2026</strong> là mốc kinh doanh người dùng xác nhận. Nó không phải ngày bắt đầu tồn kho bằng 0 hoặc lý do xóa các đợt mua trước khai trương. Hai lần nhập đầu đã được xác nhận là trước tháng 8. Các ngày được chọn random chỉ dùng cho lịch ước tính, phải giữ cờ chưa xác minh.</p>
+<h2 id="3-hoc-gi-tu-thi-truong">3. Học gì từ thị trường</h2>
+<p>Đây là so sánh cách tổ chức giải pháp dựa trên tài liệu chính thức, không phải kết quả dùng thử có chấm điểm, chứng minh thị phần hoặc xác nhận toàn bộ tính năng của nhà cung cấp.</p>
+<table>
+<thead>
+<tr>
+<th>Nhóm tham khảo</th>
+<th>Điều có ích cho ChiDi</th>
+<th>Quyết định áp dụng</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Haravan / Sapo</td>
+<td>Cùng một hành trình đơn hàng, kho, khách và nhiều kênh bán</td>
+<td>Một mã đơn nội bộ, ánh xạ mã sàn/vận chuyển, không nhập lại doanh thu mỗi kênh</td>
+</tr>
+<tr>
+<td>KiotViet</td>
+<td>Tập trung thao tác bán lẻ theo ngành</td>
+<td>Mã biến thể rõ, form ít bước, tra cứu bằng SKU và mã chứng từ</td>
+</tr>
+<tr>
+<td>MISA AMIS</td>
+<td>Kế toán, đối chiếu và kết nối nghiệp vụ</td>
+<td>Tách báo cáo thu chi khỏi báo cáo kế toán, giữ căn cứ chứng từ</td>
+</tr>
+<tr>
+<td>ERPNext</td>
+<td>Phân hệ ERP và cách liên kết chứng từ với sổ</td>
+<td>Truy từ số tổng về chứng từ; không sửa sổ trực tiếp bằng màn hình danh mục</td>
+</tr>
+<tr>
+<td>Odoo</td>
+<td>Chia bộ ứng dụng theo phân hệ</td>
+<td>Mở rộng từng module theo nhu cầu; kiểm tra riêng giấy phép/tính năng</td>
+</tr>
+</tbody>
+</table>
+<p>Nguồn: <a href="https://www.haravan.com/omnichannel">Haravan</a>, <a href="https://www.sapo.vn/omnichannel.html">Sapo</a>, <a href="https://www.kiotviet.vn/phan-mem-ban-hang-thoi-trang">KiotViet</a>, <a href="https://amis.misa.vn/ld/amis-ke-toan">MISA AMIS</a>, <a href="https://frappe.io/erpnext">ERPNext</a>, <a href="https://www.odoo.com/page/editions">Odoo editions</a>.</p>
+<p>ERPNext mã nguồn mở vẫn cần triển khai, hosting và người quản trị. Odoo có Community và Enterprise; không suy diễn mọi chức năng kế toán đều nằm trong bản miễn phí. ChiDi đã chọn tự xây theo nghiệp vụ riêng, nên các sản phẩm này là đối chiếu thiết kế, không phải các thành phần bắt buộc phải mua. <a href="https://frappe.io/erpnext/pricing">ERPNext pricing</a>, <a href="https://www.odoo.com/page/editions">Odoo editions</a>.</p>
+<h2 id="4-vi-sao-chon-database-nay">4. Vì sao chọn database này</h2>
+<table>
+<thead>
+<tr>
+<th>Lựa chọn</th>
+<th>Điểm phù hợp</th>
+<th>Công việc phải tự làm</th>
+<th>Quyết định</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Supabase PostgreSQL</td>
+<td>Database quan hệ, Auth, API, RLS cùng nền tảng; SDK JavaScript</td>
+<td>Thiết kế nghiệp vụ, quyền, backup và kiểm thử</td>
+<td>Chọn cho V1</td>
+</tr>
+<tr>
+<td>PostgreSQL ở dịch vụ khác như Neon</td>
+<td>Quan hệ, giao dịch, SQL; có lựa chọn khởi đầu miễn phí</td>
+<td>Bổ sung lớp Auth/API/quyền ứng dụng tương ứng</td>
+<td>Phương án thay nơi lưu database khi cần</td>
+</tr>
+<tr>
+<td>PostgreSQL tự quản</td>
+<td>Chủ động cấu hình và di chuyển</td>
+<td>Máy chủ, vá lỗi, giám sát, backup, phục hồi, nhân lực</td>
+<td>Chưa phù hợp ưu tiên dễ quản lý hiện tại</td>
+</tr>
+<tr>
+<td>SQLite</td>
+<td>Đơn giản cho một thiết bị/công cụ nhỏ</td>
+<td>Khó đáp ứng vai trò database online nhiều người ghi cùng lúc</td>
+<td>Không dùng làm database chính của ERP online</td>
+</tr>
+<tr>
+<td>Excel</td>
+<td>Người dùng quen, nhập và rà soát nguồn thuận tiện</td>
+<td>Khó bảo đảm giao dịch, phân quyền và chống ghi trùng đa người</td>
+<td>Giữ làm nguồn chuyển đổi/xuất báo cáo</td>
+</tr>
+</tbody>
+</table>
+<p>PostgreSQL có giấy phép tự do sử dụng theo điều khoản của dự án; điều đó không làm máy chủ, backup hay công sức vận hành tự nhiên miễn phí. <a href="https://www.postgresql.org/about/licence/">PostgreSQL license</a>. SQLite khuyến nghị database client/server khi có nhiều máy truy cập dữ liệu qua mạng hoặc nhiều tiến trình ghi; đây là lý do loại khỏi vai trò database chính. <a href="https://www.sqlite.org/whentouse.html">SQLite use cases</a>. Hạn mức/gói Neon cần đối chiếu lúc lựa chọn, không khóa kiến trúc vào một con số quảng cáo. <a href="https://neon.com/pricing">Neon pricing</a>.</p>
+<p>Quyết định dùng Supabase là đánh giá thiết kế cho ChiDi: giảm số hệ thống phải ghép ở giai đoạn đầu, vẫn lưu dữ liệu trong PostgreSQL. Chuyển nhà cung cấp sau này có thể chuyển schema/dữ liệu SQL, nhưng Auth, Storage, RPC exposure và deployment vẫn cần công việc chuyển đổi; không hứa “đổi một URL là xong”.</p>
+<h2 id="5-so-o-he-thong">5. Sơ đồ hệ thống</h2>
+<p>Xem sơ đồ trực quan <a href="architecture.svg">architecture.svg</a>, bản có thể chỉnh sửa <a href="architecture.mmd">architecture.mmd</a>, và <a href="data-model-v1.mmd">mô hình dữ liệu V1</a>. <a href="data-model.mmd">data-model.mmd</a> là <strong>mô hình đích</strong>, có nhiều bảng chưa tồn tại trong migration V1.</p>
+<pre><code class="language-mermaid">flowchart LR
+  U[Chủ shop / nhân viên] --&gt; R[React JavaScript]
+  R --&gt; A[Supabase Auth]
+  R --&gt;|Đọc + JWT| Q[Data API + RLS]
+  R --&gt;|Lưu / ghi / đảo| F[RPC PostgreSQL]
+  Q --&gt; D[(Danh mục và chứng từ)]
+  F --&gt; D
+  F --&gt; L[(Sổ kho và tiền)]
+  F --&gt; H[(Nhật ký)]
+  R --&gt;|Chế độ demo riêng| B[Bộ nhớ trình duyệt]
+</code></pre>
+<p>Mũi tên ghi từ React không được hiểu là trình duyệt tự sửa bảng sổ. React gửi yêu cầu; database quyết định người dùng có quyền không, chứng từ có hợp lệ không và có bị ghi trước đó chưa. Một lời gọi RPC thành công mới làm thay đổi đồng thời chứng từ, sổ và nhật ký.</p>
+<p>Khi có tích hợp vận chuyển, thêm hàm JavaScript ở máy chủ/Edge Function để giữ API secret và xử lý webhook. Chưa cần dựng một backend Node riêng chỉ để chuyển tiếp mọi truy vấn đang được RLS/RPC xử lý. Nếu quy trình phát triển lớn đến mức SQL trở nên khó quản lý, có thể bổ sung API Node có kiểm soát, nhưng vẫn giữ tính nguyên tử của giao dịch tài chính tại database.</p>
+<h2 id="6-ranh-gioi-ma-nguon">6. Ranh giới mã nguồn</h2>
+<p>React dùng JSX/JavaScript, không chuyển sang TypeScript trái yêu cầu. Vite phục vụ phát triển và tạo bộ file tĩnh. Việc chọn SPA phù hợp ERP nội bộ không cần SEO; routing dạng hash của V1 giúp chạy trên static hosting đơn giản. Đây là quyết định của dự án trong các lựa chọn xây ứng dụng React, không phải yêu cầu duy nhất của React. <a href="https://react.dev/learn/build-a-react-app-from-scratch">React từ đầu</a>, <a href="https://vite.dev/guide/">Vite</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Lớp</th>
+<th>File hiện tại</th>
+<th>Trách nhiệm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ứng dụng</td>
+<td><code>src/App.jsx</code></td>
+<td>Phiên đăng nhập, workspace, điều hướng, trạng thái tải/lỗi</td>
+</tr>
+<tr>
+<td>Màn hình</td>
+<td><code>src/pages.jsx</code>, <code>src/forms.jsx</code></td>
+<td>Form, bảng, bộ lọc, xác nhận, CSV</td>
+</tr>
+<tr>
+<td>Thành phần chung</td>
+<td><code>src/components.jsx</code>, <code>src/styles.css</code></td>
+<td>Modal, bảng, field, giao diện responsive</td>
+</tr>
+<tr>
+<td>Quy tắc phía trình duyệt</td>
+<td><code>src/lib/domain.js</code></td>
+<td>Kiểm tra sớm, tính tiền, ngày, tổng và CSV an toàn</td>
+</tr>
+<tr>
+<td>Truy cập dữ liệu</td>
+<td><code>src/lib/repository.js</code></td>
+<td>Adapter demo và Supabase dùng cùng thao tác nghiệp vụ</td>
+</tr>
+<tr>
+<td>Quy tắc có thẩm quyền</td>
+<td><code>supabase/migrations/001_core.sql</code></td>
+<td>Quyền, ràng buộc, khóa, ghi sổ nguyên tử</td>
+</tr>
+<tr>
+<td>Kiểm chứng</td>
+<td><code>src/lib/domain.test.js</code>, <code>scripts/test-database.mjs</code>, <code>tests/e2e/</code></td>
+<td>Số liệu, quyền database và hành trình giao diện</td>
+</tr>
+</tbody>
+</table>
+<p>Khi module tăng, tách <code>pages.jsx</code> thành thư mục <code>features/purchases</code>, <code>features/cash</code>, <code>features/orders</code> thay vì tiếp tục phình một file. V1 không thêm abstraction chỉ để tạo nhiều thư mục rỗng. Cần giữ test hợp đồng giữa hai adapter vì demo không thể mô phỏng quyền và đồng thời giống cloud.</p>
+<h2 id="7-ba-loai-du-lieu-phai-tach-ro">7. Ba loại dữ liệu phải tách rõ</h2>
+<p><strong>Nguồn:</strong> những gì đã đọc từ Excel, gồm mã dòng, SHA-256 file, sheet/dòng nguồn và trạng thái nguồn. Đây là chứng cứ về dữ liệu được nhập, chưa phải chứng cứ giao dịch kinh tế đúng.</p>
+<p><strong>Chứng từ nghiệp vụ:</strong> bản nháp được người có quyền đối chiếu, bổ sung ngày, SKU, tài khoản và căn cứ. Bản nháp thay đổi được; ghi sổ là hành động riêng. Dữ liệu thiếu vẫn tồn tại để xử lý, không bị xóa cho đẹp báo cáo.</p>
+<p><strong>Sổ phát sinh:</strong> kết quả đã ghi qua kiểm tra. Báo cáo dựa trên sổ và ngày nghiệp vụ, có cả phát sinh đảo đúng ngày đảo. V1 có sổ kho nhận hàng và sổ tiền; chưa có sổ cái kế toán kép. Không đọc tổng từ mọi dòng nguồn rồi gọi là tồn kho hoặc lợi nhuận.</p>
+<p>Mỗi bảng nghiệp vụ có <code>workspace_id</code>. Khóa ngoại gồm cả workspace và ID giúp tránh một phiếu ChiDi trỏ nhầm tới sản phẩm workspace khác dù ai đó biết UUID. Mã SKU và mã nguồn duy nhất trong từng workspace, không nhất thiết duy nhất cho toàn bộ dịch vụ.</p>
+<h2 id="8-quy-trinh-nhap-hang">8. Quy trình nhập hàng</h2>
+<h3 id="a-co-o-v1">Đã có ở V1</h3>
+<p>Một dòng phiếu nhập chứa một SKU, nhà cung cấp, kho, số lượng, đơn giá, phí nhập trực tiếp và ngày nhận. Lưu nháp không tạo kho. Ghi sổ cần ngày thực tế, SKU hết trạng thái tạm, nhà cung cấp/kho hợp lệ. Kết quả là một phát sinh kho với số lượng và tổng tiền chính xác. Phiếu đã ghi không sửa số lượng/đơn giá; chủ shop đảo với ngày và lý do để tạo phát sinh ngược.</p>
+<p>V1 dùng một chứng từ cho mỗi dòng hàng để chuyển dữ liệu hiện có an toàn. Một lần nhập nhiều SKU trong nghiệp vụ đích sẽ dùng header phiếu + nhiều dòng; phải có migration rõ và ghi tất cả dòng trong một giao dịch. Phiếu nhập hiện tại chưa phải đơn đặt hàng, hóa đơn mua hay công nợ phải trả.</p>
+<h3 id="kien-truc-ich">Kiến trúc đích</h3>
+<p>Đề nghị mua → đơn đặt hàng → nhận từng phần → hóa đơn nhà cung cấp → đối chiếu PO/nhận/hóa đơn → thanh toán → phân bổ thanh toán. Các thực thể riêng cho phép nhận hàng trước hóa đơn, hóa đơn trước trả tiền, một khoản trả cho nhiều hóa đơn hoặc trả trước nhà cung cấp.</p>
+<p>Ví dụ quản trị giản lược: nhận 10 sản phẩm × 100.000 đ, chưa hóa đơn, giá trị kho tăng 1.000.000 đ và có khoản hàng nhận chưa hóa đơn tương ứng. Khi hóa đơn được chấp nhận, chuyển khoản đó sang công nợ nhà cung cấp. Trả 600.000 đ làm giảm tiền và công nợ 600.000 đ, không tăng kho lần nữa và không ghi toàn bộ 600.000 đ thành giá vốn bán. Chi phí vận chuyển đầu vào phân bổ theo quy tắc cấu hình có chứng từ; không cộng cùng phí ở cả giá nhập và chi phí hoạt động.</p>
+<p>Các bút toán ở đây là mô hình quản trị minh họa, chưa xác định tài khoản pháp định, VAT hoặc chính sách thuế của ChiDi. Cần người phụ trách kế toán xác nhận phương pháp trước khi triển khai sổ kế toán chính thức.</p>
+<h2 id="9-on-hang-kho-va-cod-o-kien-truc-ich">9. Đơn hàng, kho và COD ở kiến trúc đích</h2>
+<p>Một đơn nên có trạng thái rõ: nháp, xác nhận, giữ hàng, đóng gói, bàn giao vận chuyển, giao thành công, hủy hoặc hoàn. Trạng thái thanh toán tách khỏi trạng thái giao hàng: giao thành công không có nghĩa hãng vận chuyển đã chuyển tiền về ngân hàng.</p>
+<p>Kho cần phân biệt hàng thực có, hàng đã giữ, hàng đang đi và hàng sẵn bán. Khi bàn giao, chuyển từ kho bán sang kho đang giao, không làm biến mất toàn bộ giá trị khỏi hệ thống. Thời điểm ghi doanh thu/giá vốn phụ thuộc chính sách bàn giao quyền kiểm soát được chốt; V1 không tự suy ra từ một trạng thái webhook. Nếu chọn ghi khi giao thành công, phát sinh phải nối về sự kiện đã xác minh và đơn gốc.</p>
+<p>Ví dụ bỏ qua thuế để giải thích: đơn bán 300.000 đ, giá vốn 180.000 đ, phí vận chuyển/thu hộ shop chịu 25.000 đ. Khi đáp ứng điều kiện ghi nhận, doanh thu 300.000 đ, giá vốn 180.000 đ, khoản cần thu qua hãng vận chuyển 300.000 đ. Khi hãng chuyển 275.000 đ và chứng minh phí 25.000 đ, đối soát xóa khoản phải thu 300.000 đ bằng ngân hàng 275.000 đ cộng phí 25.000 đ. <strong>Khoản 275.000 đ không tạo thêm 275.000 đ doanh thu.</strong> Nếu shop/khách chịu phí khác, số liệu phải theo hợp đồng và bảng đối soát thực tế.</p>
+<p>Hệ thống đích cần <code>shipments</code>, <code>cod_settlements</code>, <code>cod_settlement_lines</code>, <code>bank_transactions</code>, <code>settlement_matches</code>. Một dòng đối soát có thể khớp một vận đơn; mọi phần chênh lệch đều có trạng thái/lý do. Khớp tự động chỉ khi đủ khóa tin cậy và số tiền; không dùng gần giống tên khách để tự ghi sổ.</p>
+<p>Hoàn một phần phải tham chiếu dòng bán gốc, số lượng đã giao và giá vốn gốc. Hàng còn bán được vào kho phù hợp; hàng lỗi vào kho chờ xử lý. Hoàn tiền và hoàn hàng là hai luồng riêng. Bán/giao lại một hàng hoàn cần nhận diện nghiệp vụ mới, không sửa lịch sử đơn đầu cho khớp số hiện tại.</p>
+<h2 id="10-gia-von-thu-chi-va-ke-toan">10. Giá vốn, thu chi và kế toán</h2>
+<p>V1 giữ giá trị mua của từng phiếu nhận, chưa có FIFO cho xuất bán. Kiến trúc đích có lô giá vốn và bảng phân bổ từ dòng bán sang lô. Ví dụ lô A 5 chiếc × 80.000 đ, lô B 5 chiếc × 90.000 đ, bán 7 chiếc theo FIFO thì giá vốn 580.000 đ, còn 3 chiếc trị giá 270.000 đ. Hoàn 2 chiếc phải truy được phần phân bổ gốc và quy tắc hoàn, không tùy tiện lấy giá mua mới nhất.</p>
+<p>Tiền trong V1 lưu VND nguyên bằng <code>bigint</code>; số lượng là đơn vị sản phẩm nguyên. Mỗi giá trị tiền giới hạn 9.000.000.000.000 đ. JavaScript kiểm tra số nguyên và cộng bằng BigInt rồi chỉ chuyển ra Number nếu an toàn. Nếu chuyển sang hàng cân, ngoại tệ, giá phân bổ lẻ hoặc thuế, dùng <code>numeric(p,s)</code> và truyền chuỗi decimal, bổ sung thư viện decimal cùng quy tắc làm tròn; không dùng float để làm tròn “gần đúng”.</p>
+<p>Hệ thống kế toán đích cần danh mục tài khoản, kỳ kế toán, journal header/lines, loại chứng từ, mapping nghiệp vụ và đối tượng công nợ. Tổng Nợ = tổng Có cho từng chứng từ phải được đảm bảo ở cấp giao dịch; không chỉ kiểm tra ở React. Sổ phát sinh không sửa/xóa qua ứng dụng. Đảo và điều chỉnh có tham chiếu bản gốc, người thực hiện, căn cứ và kỳ cho phép.</p>
+<p>ERPNext là tham khảo cho việc truy từ sổ cái về chứng từ đã submit; perpetual inventory liên kết thay đổi giá trị kho với hạch toán. ChiDi cần thiết kế quy tắc của mình và kiểm thử từng luồng trước khi gắn nhãn “kế toán”. <a href="https://docs.frappe.io/erpnext/general-ledger">ERPNext General Ledger</a>, <a href="https://docs.frappe.io/erpnext/perpetual-inventory">Perpetual inventory</a>.</p>
+<p>Chi tiền mua hàng, chủ shop rút tiền, góp vốn, nhận COD và trả lương không tự tương đương chi phí/doanh thu kỳ. FLive có thể là tiền dịch vụ cho nhiều kỳ, bao bì có thể tiêu dùng ngay hoặc cần theo dõi tồn; cách ghi nhận phải dựa trên kỳ dịch vụ và chính sách. Do đó V1 gọi báo cáo là <strong>thu chi đã ghi</strong>, không gọi số dư tiền là lợi nhuận và không tự dựng P&amp;L chưa đủ dữ liệu.</p>
+<h2 id="11-chong-trung-ong-thoi-va-sua-sai">11. Chống trùng, đồng thời và sửa sai</h2>
+<p>Khi ghi sổ, RPC khóa dòng chứng từ, kiểm tra trạng thái, ghi ledger, đổi trạng thái và thêm nhật ký trong một giao dịch. Unique constraint trên chứng từ + loại phát sinh là lớp bảo vệ thứ hai. Một request ID không được tái sử dụng cho nghiệp vụ khác; chứng từ đã ghi trả về kết quả hiện có. Nếu mạng mất sau khi server đã commit, gửi lại không tạo dòng sổ thứ hai.</p>
+<p>PostgreSQL có khóa dòng và khóa giao dịch phù hợp bảo vệ tài nguyên được cập nhật đồng thời. Khóa phải lấy theo thứ tự nhất quán khi mở rộng nhiều SKU để giảm deadlock. <a href="https://www.postgresql.org/docs/current/explicit-locking.html">PostgreSQL locking</a>. PGlite đã kiểm tra replay và quyền nhưng không chứng minh thử tải nhiều kết nối thực; cần test cạnh tranh trên PostgreSQL/Supabase thử nghiệm trước mở rộng bán hàng giữ tồn.</p>
+<p>Chứng từ đảo giữ nguyên số liệu nguồn, thêm phát sinh ngược và lý do. Báo cáo tới trước ngày đảo vẫn thấy phát sinh gốc; báo cáo sau ngày đảo thấy ảnh hưởng ròng. V1 chưa có khóa kỳ kế toán, nên quyền owner phải dùng có kiểm soát; giai đoạn kế toán bổ sung kỳ đóng/mở, phân tách người lập và người duyệt, hạn mức duyệt và nhật ký mở lại kỳ.</p>
+<p>Đối với tích hợp, sự kiện cần gửi được ghi vào outbox cùng giao dịch nghiệp vụ. Worker gửi sau, retry có backoff, lưu lần thử và khóa chống trùng ở hệ thống nhận. Không hứa giao sự kiện “đúng một lần” qua mạng; thiết kế để việc nhận lặp không gây hiệu ứng lặp. <a href="https://docs.aws.amazon.com/en_en/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html">Transactional outbox</a>. Outbox và worker chưa triển khai trong V1.</p>
+<h2 id="12-phan-quyen-va-bao-ve-du-lieu">12. Phân quyền và bảo vệ dữ liệu</h2>
+<table>
+<thead>
+<tr>
+<th>Vai trò V1</th>
+<th>Đọc</th>
+<th>Tạo/sửa nháp</th>
+<th>Danh mục thường</th>
+<th>Ghi sổ</th>
+<th>Số dư đầu / nhập nguồn / đảo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>owner</td>
+<td>Có</td>
+<td>Có</td>
+<td>Có</td>
+<td>Có</td>
+<td>Có</td>
+</tr>
+<tr>
+<td>manager</td>
+<td>Có</td>
+<td>Có</td>
+<td>Có</td>
+<td>Có</td>
+<td>Không</td>
+</tr>
+<tr>
+<td>staff</td>
+<td>Có</td>
+<td>Có</td>
+<td>Không</td>
+<td>Không</td>
+<td>Không</td>
+</tr>
+<tr>
+<td>viewer</td>
+<td>Có</td>
+<td>Không</td>
+<td>Không</td>
+<td>Không</td>
+<td>Không</td>
+</tr>
+</tbody>
+</table>
+<p>Quyền V1 còn ở cấp workspace, chưa tách nhân viên kho khỏi dữ liệu tiền theo phân hệ. Trước khi đưa dữ liệu lương hoặc thông tin nhạy cảm, bổ sung quyền theo module/chức năng và kiểm thử bảng liên quan. Bản demo chỉ là trải nghiệm một người, không phải kiểm chứng quyền.</p>
+<p>RLS lọc dữ liệu theo workspace; RPC kiểm tra lại role bên server. Các hàm đặc quyền dùng <code>search_path</code> rỗng, tên bảng được ghi đầy đủ và quyền execute giới hạn. Secret/API key của nhà vận chuyển không nằm trong <code>VITE_*</code>. Backup và log phải tránh chứa token/mật khẩu. Tệp đính kèm ở giai đoạn sau dùng bucket riêng tư và đường dẫn theo workspace, tải qua URL có thời hạn; chưa bật bucket công khai trong V1.</p>
+<p>OWASP ASVS cung cấp tập yêu cầu để lập kế hoạch kiểm chứng Auth, quyền, đầu vào, phiên và log. Dự án không tự nhận đạt chứng nhận ASVS chỉ vì có vài test quyền. <a href="https://owasp.org/www-project-application-security-verification-standard/">OWASP ASVS</a>.</p>
+<h2 id="13-du-lieu-excel-a-uoc-nghien-cuu">13. Dữ liệu Excel đã được nghiên cứu</h2>
+<p>Nguồn hiện tại là <code>ChiDi_Online_Business_ERP.xlsx</code> trong thư mục ERP cũ. Snapshot ngày 10/09/2026 đọc dữ liệu đầu vào, không ghi workbook. SHA-256:</p>
+<pre><code class="language-text">b85f3d515d392c38ca0a451717cd8eb2dd35f47a2e0cb0219b6fbe1cbe6785a4
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Chỉ tiêu</th>
+<th style="text-align: right;">Báo cáo chuyển đổi trước đây</th>
+<th style="text-align: right;">File hiện tại đọc lại</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dòng nhập hàng</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">17</td>
+</tr>
+<tr>
+<td>Số lượng đầu vào</td>
+<td style="text-align: right;">1.463</td>
+<td style="text-align: right;">1.566</td>
+</tr>
+<tr>
+<td>Tiền hàng đầu vào</td>
+<td style="text-align: right;">74.318.000 đ</td>
+<td style="text-align: right;">79.043.000 đ</td>
+</tr>
+<tr>
+<td>SKU tạm/danh mục nguồn</td>
+<td style="text-align: right;">15</td>
+<td style="text-align: right;">17</td>
+</tr>
+<tr>
+<td>Nhà cung cấp hiện tại</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">3</td>
+</tr>
+<tr>
+<td>Dòng thu chi hiện tại</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">12</td>
+</tr>
+<tr>
+<td>Đơn bán đọc được</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">0</td>
+</tr>
+</tbody>
+</table>
+<p>Hai dòng mới <code>POL-LEG-L9-001</code> và <code>POL-LEG-L10-001</code> ngày 09/09/2026 có 100 × 45.000 đ và 3 × 75.000 đ. Nguồn đánh dấu đã ghi “Có”, nhưng dấu đó chưa đủ bằng chứng để tự ghi sổ trong website mới. Cả 17 dòng vào khu vực nháp; trạng thái gốc vẫn được giữ. Không ghi đè dữ liệu mới bằng bản 15 dòng cũ chỉ để khớp báo cáo tháng 8.</p>
+<p>12 dòng thu chi hiện tại có tổng chiều thu 10.139.000 đ và chiều chi 14.978.000 đ; đây là tổng dữ liệu nguồn chưa đối chiếu đủ. File cũ từng có các khoản mua hàng xuất hiện ở hai bảng, cần nhận diện là cùng sự kiện thanh toán. Các khoản chi không rõ tài khoản theo câu trả lời người dùng vẫn để trống tài khoản. Không tự phân bổ vào tiền mặt để làm đẹp số dư.</p>
+<p>Lịch ước tính đã dùng: 21/07 đợt 1, 28/07 đợt 2, 04/08 đợt 3–4, 11/08 đợt 5, 18/08 đợt 6, 25/08 đợt 7–8. Cách gộp này đáp ứng lịch tuần để lập kế hoạch, không chứng minh từng nhóm hàng thực nhận trong cùng ngày. Dữ liệu tháng 9 vừa thêm giữ ngày nguồn riêng; không kéo về lịch tháng 8.</p>
+<h2 id="14-quy-trinh-chuyen-du-lieu">14. Quy trình chuyển dữ liệu</h2>
+<p>Script đọc file dưới dạng snapshot bytes, tính SHA-256 rồi xuất JSON riêng. ID nguồn ổn định được dùng chống trùng; hash file dùng nhận diện lần nhập. Nếu file đổi một ô, hash file đổi nhưng các dòng cũ không vì vậy được tạo lần hai. Dòng nguồn cùng ID nhưng nội dung khác trở thành xung đột cần xem, không tự sửa chứng từ đã có.</p>
+<p>Các bước nghiệm thu: lưu nguồn → đối chiếu số dòng/tổng → rà SKU và NCC → kiểm ngày → kiểm tài khoản/số dư → kiểm số tiền trùng → nhập nháp → đối chiếu lại → ghi từng chứng từ có căn cứ. Những mục chưa rõ vẫn sống trong hàng chờ. Phân loại đề xuất như FLive sang phần mềm được ghi chú để người dùng xem lại, không coi là chính sách kế toán đã được chấp thuận.</p>
+<p>Nếu workbook có dữ liệu mới, chạy script ra <strong>một tên file mới</strong>; script từ chối ghi đè file xuất đang tồn tại. Không mở workbook bằng chế độ ghi để chỉ lấy dữ liệu. Xuất lại không kiểm chứng công thức Excel hoặc hợp pháp hóa giao dịch; việc phân tích input và việc kiểm tra tài chính là hai bước cần phối hợp.</p>
+<h2 id="15-bao-cao-nao-dung-uoc-ngay">15. Báo cáo nào dùng được ngay</h2>
+<p>Dashboard V1 chỉ tính kho nhận từ ledger, dòng tiền trong kỳ, số chứng từ chờ và giá trị nháp cần đối chiếu. Trang kho tổng hợp nhận/đảo theo SKU tới ngày chọn; chưa bao gồm xuất bán nên chưa phải kiểm kê tồn thực tế. Báo cáo tiền dùng số dư đầu đã xác nhận cộng phát sinh tới ngày xem, có xử lý đảo và ngày trước mở sổ.</p>
+<p>Dữ liệu đọc cloud có phân trang để tránh giới hạn mặc định làm cắt báo cáo còn 1.000 dòng. Tuy vậy V1 tải nhiều bảng về trình duyệt và không có snapshot nhất quán xuyên mọi request. Khi nhiều người cập nhật cùng lúc, cần làm báo cáo server dùng một snapshot/giao dịch và phân trang đúng nguồn. Trước khi dữ liệu vượt 100.000 dòng mỗi bảng, chuyển các màn hình sang API phân trang và truy vấn tổng hợp; V1 chủ động báo vượt giới hạn thay vì âm thầm thiếu dòng.</p>
+<p>P&amp;L, bảng cân đối, công nợ, tuổi nợ, hiệu quả livestream, lãi theo SKU/kênh và tồn khả dụng chỉ được đưa ra sau khi module nguồn tương ứng đầy đủ. Mọi KPI phải có định nghĩa, kỳ, múi giờ, trạng thái được tính và đường đi về dòng chứng từ. Không dùng giá trị demo để lấp biểu đồ của workspace thật.</p>
+<h2 id="16-van-hanh-va-chi-phi">16. Vận hành và chi phí</h2>
+<p>Supabase Free phù hợp để xây, thử và khởi đầu trong hạn mức; cần xem <a href="https://supabase.com/pricing">giá hiện hành</a> và phần hạn mức trong <a href="#setup" data-page="setup">hướng dẫn Supabase</a>. Không cam kết toàn bộ ERP doanh nghiệp vận hành miễn phí vĩnh viễn. Chi phí tăng còn có tên miền, gửi mail, lưu tệp, API đối tác, backup, phát triển và hỗ trợ.</p>
+<p>Website là static bundle nên có nhiều lựa chọn hosting. Chỉ xuất bản <code>dist/</code>, không upload toàn project kèm <code>data/</code>, <code>.env.local</code>, Excel hay <code>.tools/</code>. Trước xuất bản phải cấu hình domain HTTPS, Auth redirect, CSP phù hợp Supabase, quota và quy trình rollback. Hiện chưa có website công khai được triển khai.</p>
+<p>Sao lưu hằng ngày ngoài hệ thống cùng kiểm tra khôi phục là mức thiết kế khởi đầu. Nếu cần mất tối đa 15 phút dữ liệu, phải triển khai/kiểm chứng cơ chế tương ứng như PITR/WAL và gói phù hợp; không gọi một lịch backup ngày là RPO 15 phút. Đặt mục tiêu phục hồi theo buổi diễn tập thực tế, ghi thời gian và kiểm tổng. <a href="https://www.postgresql.org/docs/current/backup.html">PostgreSQL backup</a>.</p>
+<h2 id="17-lo-trinh-e-thanh-erp-ay-u">17. Lộ trình để thành ERP đầy đủ</h2>
+<table>
+<thead>
+<tr>
+<th>Giai đoạn</th>
+<th>Kết quả cần có</th>
+<th>Điều kiện qua cổng</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>V1 hiện tại</td>
+<td>React, danh mục, nhập hàng, thu chi, import, ledger, audit, SQL/RLS</td>
+<td>Test máy đạt; cấu hình và nghiệm thu cloud còn chờ</td>
+</tr>
+<tr>
+<td>V1.1 vận hành nhóm</td>
+<td>Mời thành viên, chọn workspace, quyền theo module, báo cáo server, backup đã khôi phục</td>
+<td>Kiểm thử 2 tài khoản/API và tải đồng thời thật</td>
+</tr>
+<tr>
+<td>V2 bán hàng và kho</td>
+<td>Khách, đơn/chi tiết, giữ tồn, giao hàng, xuất/hoàn, kiểm kê, FIFO</td>
+<td>Không âm tồn trái chính sách, partial flows, giá vốn truy nguyên</td>
+</tr>
+<tr>
+<td>V3 COD và công nợ</td>
+<td>Nhập file đối soát, ghép vận đơn, phí/thiếu/thừa, AP/AR, phân bổ tiền</td>
+<td>Không tính COD hai lần; đối soát từng phần và không khớp có xử lý</td>
+</tr>
+<tr>
+<td>V4 kế toán quản trị</td>
+<td>Sổ kép, kỳ, khóa kỳ, opening migration, P&amp;L, bảng cân đối, dòng tiền</td>
+<td>Tổng Nợ/Có cân, subledger = GL, kiểm chứng bởi người phụ trách kế toán</td>
+</tr>
+<tr>
+<td>V5 mở rộng</td>
+<td>Livestream/CRM/marketing, lương, tài sản, tích hợp được cấp API</td>
+<td>Kiểm quyền nhạy cảm, phân bổ theo kỳ, sự kiện retry an toàn</td>
+</tr>
+</tbody>
+</table>
+<p>Không đặt lịch giao chính xác khi chưa biết số người phát triển, giờ dành cho dự án, hợp đồng API và độ sạch dữ liệu. Mỗi giai đoạn nên giao một luồng hoàn chỉnh có test và hướng dẫn. <a href="#prompt" data-page="prompt">Prompt triển khai</a> quy định đầu ra và tiêu chí cụ thể để tiếp tục mà không làm mất phần đã có.</p>
+<h2 id="18-gioi-han-bang-chung-va-quyet-inh-con-mo">18. Giới hạn bằng chứng và quyết định còn mở</h2>
+<p>Chưa có thông tin pháp nhân, chính sách kế toán/thuế, phí hợp đồng vận chuyển, chuẩn SKU thật, số dư tiền/kho đầu đầy đủ và tài khoản Supabase. Những thiếu hụt này không ngăn xây app và kiểm thử kỹ thuật, nhưng ngăn khẳng định số liệu kế toán đã đúng hoặc hệ thống sẵn sàng thay sổ chính.</p>
+<p>Các số snapshot trong tài liệu là quan sát file ngày kiểm tra; không phải xác nhận đã thanh toán hoặc hàng vẫn còn tại kho. Test đạt chứng minh hành vi trong kịch bản đã chạy, không bao phủ mọi lỗi và không thay kiểm toán. Nguồn nghiên cứu cùng nhận định thiết kế được tập hợp ở <a href="#sources" data-page="sources">RESEARCH_SOURCES.md</a>; kết quả kỹ thuật thực tế ở <a href="#checks" data-page="checks">VERIFICATION.md</a>.</p><p class="sourcefile"><a href="KIEN_TRUC_ERP_CHIDI.md">Mở bản Markdown gốc</a></p></article><article id="operations" data-panel hidden><h1 id="thiet-lap-va-van-hanh-chidi-erp-v11">Thiết lập và vận hành ChiDi ERP V1.1</h1>
+<p>Ngày cập nhật: <strong>11/09/2026</strong>. Tài liệu này tiếp nối <a href="#setup" data-page="setup">hướng dẫn Supabase V1</a>, dành cho project đã chạy <code>001_core.sql</code> và đã điền <code>.env.local</code>.</p>
+<p>Bạn đã cho biết hoàn tất bước 1–6. Kiểm tra chỉ đọc ngày 11/09/2026 đã kết nối được dịch vụ Auth, xác nhận có các bảng nền và thấy API từ chối người chưa đăng nhập đọc dữ liệu ERP. Việc tiếp theo là chạy migration V1.1, đăng nhập bằng tài khoản thật, chọn workspace và thử nghiệp vụ. Những kiểm tra chỉ đọc này chưa xác nhận luồng đăng nhập hoặc dữ liệu đã được ghi đúng trên cloud.</p>
+<p><strong>Trạng thái tài liệu:</strong> code V1.1 đã hoàn thành đợt nâng cấp và qua 97 kiểm tra tự động; kết nối cloud đã kiểm tra chỉ đọc. Migration 002 và nghiệm thu đăng nhập thật còn chờ. Kết quả chi tiết ở <a href="#history" data-page="history">CHANGELOG</a> và <a href="#checks" data-page="checks">VERIFICATION</a>, không dùng kiểm thử mô phỏng thay nghiệm thu tài khoản của bạn.</p>
+<h2 id="1-hieu-bon-khai-niem-truoc-khi-tiep-tuc">1. Hiểu bốn khái niệm trước khi tiếp tục</h2>
+<table>
+<thead>
+<tr>
+<th>Khái niệm</th>
+<th>Cách hiểu và thao tác</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Supabase project</td>
+<td>Nơi chứa database và tài khoản đăng nhập của ứng dụng. Chọn đúng project đã chạy SQL V1.</td>
+</tr>
+<tr>
+<td>Tài khoản ChiDi</td>
+<td>Email/mật khẩu đăng nhập ERP; khác phiên đăng nhập Supabase Dashboard.</td>
+</tr>
+<tr>
+<td>Workspace</td>
+<td>Bộ dữ liệu của một shop/đơn vị trong ERP. Mỗi phiếu, sản phẩm, tài khoản tiền thuộc một workspace.</td>
+</tr>
+<tr>
+<td>Vai trò</td>
+<td>Quyền thao tác trong workspace: chủ shop, quản lý, nhân viên hoặc chỉ xem. Không phải quyền quản trị hạ tầng Supabase.</td>
+</tr>
+</tbody>
+</table>
+<p>Một người có thể tham gia nhiều workspace. Trước khi nhập dữ liệu, tạo phiếu hoặc cấp thành viên, luôn nhìn tên workspace đang mở. Chuyển workspace chỉ thay bộ dữ liệu đang xem; không chuyển chứng từ từ shop này sang shop khác.</p>
+<h2 id="2-chay-migration-bo-sung-mot-lan">2. Chạy migration bổ sung một lần</h2>
+<ol>
+<li>Mở <strong>Supabase Dashboard</strong>, chọn đúng project đã chạy <code>001_core.sql</code>.</li>
+<li>Mở <strong>SQL Editor → New query</strong>. Không sửa query V1 đã lưu trước đó.</li>
+<li>Mở <a href="../supabase/migrations/002_operations.sql">002_operations.sql</a> trong project ChiDi, sao chép toàn bộ nội dung.</li>
+<li>Dán vào query mới. Kiểm tra lại tên project rồi nhấn <strong>Run</strong> một lần.</li>
+<li>Nếu chạy thành công, lưu query với tên gợi ý <code>ChiDi 002 operations 2026-09-11</code> để biết lần nâng cấp đã thực hiện.</li>
+<li>Nếu có lỗi, giữ nguyên lỗi và dừng bước nâng cấp để xác định nguyên nhân. Không xóa bảng hoặc tạo project mới chỉ để làm mất thông báo lỗi.</li>
+</ol>
+<p><strong>Không chạy lại <code>001_core.sql</code>, không dùng <code>DROP TABLE</code>, không xóa dữ liệu đang có.</strong> <code>002_operations.sql</code> là phần bổ sung sau V1. Project chưa từng có V1 phải làm hướng dẫn cài đặt ban đầu trước; project đã có V1 chỉ chạy phần bổ sung này.</p>
+<p>Không tắt RLS hoặc cấp quyền ghi bảng công khai để chữa lỗi. Chức năng trên ứng dụng đi qua RPC, là các hàm database kiểm tra quyền và thực hiện nghiệp vụ.</p>
+<h2 id="3-khoi-ong-ung-che-o-online">3. Khởi động đúng chế độ online</h2>
+<ol>
+<li>Giữ <code>.env.local</code> tại thư mục gốc project. Không chia sẻ ảnh hoặc nội dung file có giá trị cấu hình.</li>
+<li>Nếu ứng dụng đang chạy, dừng đúng cửa sổ lệnh bằng <strong>Ctrl+C</strong>.</li>
+<li>Mở lại <a href="../START_CHIDI.cmd">START_CHIDI.cmd</a>.</li>
+<li>Mở <strong>http://localhost:2000</strong>. Bản V1.1 đồng bộ cổng chạy ứng dụng với Site URL bạn đã chọn.</li>
+<li>Kiểm tra giao diện hiển thị đăng nhập hoặc nhãn <strong>Supabase online</strong>, tùy bạn đã có phiên đăng nhập hay chưa.</li>
+</ol>
+<p>Frontend dùng <code>VITE_SUPABASE_URL</code>, <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> và <code>VITE_DEMO_MODE=false</code>. Không điền mật khẩu database, <code>sb_secret_...</code> hoặc <code>service_role</code> vào biến frontend.</p>
+<p><strong>Site URL và Redirect URLs trong Supabase phải phù hợp với địa chỉ bạn thực sự dùng để mở ERP.</strong> Với lần chạy này, dùng <code>http://localhost:2000</code> cho Site URL và thêm URL này vào danh sách redirect được phép. Các ví dụ cũ dùng cổng 5173 không phải địa chỉ chạy của V1.1. Bộ kiểm thử tự động dùng cổng riêng và demo; không lấy địa chỉ kiểm thử làm Site URL.</p>
+<p>Nếu đã có một website thật tại <code>chidivibes.vn</code>, chỉ dùng URL tên miền khi website đã được triển khai và cấu hình đúng. Việc xuất hiện tên miền trong tài liệu không xác nhận website đã được xuất bản.</p>
+<p>Không đổi cấu hình tên miền đang vận hành chỉ vì một ví dụ trong tài liệu. Đối chiếu địa chỉ thực tế và môi trường muốn kiểm tra trước.</p>
+<h2 id="4-hoan-tat-ang-nhap-va-workspace">4. Hoàn tất đăng nhập và workspace</h2>
+<p>Nếu bước 7 của hướng dẫn V1 chưa thực hiện:</p>
+<ol>
+<li>Chọn <strong>Tạo tài khoản</strong> trên ChiDi; dùng email của bạn và mật khẩu dành cho ERP.</li>
+<li>Hoàn tất xác nhận email nếu project yêu cầu. Email đăng ký Supabase Dashboard không tự tạo tài khoản trong ứng dụng ChiDi.</li>
+<li>Đăng nhập ChiDi. Nếu chưa tham gia workspace nào, tạo workspace tên dễ nhận biết, ví dụ <code>ChiDi — Thử nghiệm</code>.</li>
+<li>Người tạo workspace có vai trò chủ shop. Workspace đã có dữ liệu phải được chọn lại; không tạo workspace mới để thay cho dữ liệu đang cần tìm.</li>
+<li>Khi tài khoản có nhiều workspace, dùng bộ chọn workspace để chuyển đúng nơi làm việc.</li>
+<li>Tải lại trang và xác nhận đang xem đúng workspace, đúng vai trò và đúng danh mục.</li>
+</ol>
+<p>Kho chính và tài khoản tiền nền là danh mục ban đầu. Giá trị số dư đầu chưa được đối chiếu không trở thành số dư thật chỉ vì tài khoản đã được tạo.</p>
+<p>Nếu không nhận email, kiểm tra cấu hình email và giới hạn gửi trong <a href="#setup" data-page="setup">hướng dẫn Supabase</a>. Tính năng quản lý thành viên ERP không tự cấu hình SMTP và không thay cho xác nhận email.</p>
+<h2 id="5-them-nguoi-lam-cung-shop">5. Thêm người làm cùng shop</h2>
+<p>Luồng quản lý nhóm của V1.1 là <strong>cấp quyền cho tài khoản đã đăng ký trong cùng Supabase project</strong>. Đây không phải tính năng gửi thư mời.</p>
+<ol>
+<li>Thành viên tự đăng ký tài khoản ChiDi, <strong>xác nhận email</strong>, rồi đăng nhập theo cấu hình Auth của project. Tài khoản chưa xác nhận email chưa đủ điều kiện được thêm.</li>
+<li>Chủ shop đăng nhập, chọn đúng workspace, mở phần quản lý thành viên trong <strong>Thiết lập</strong>.</li>
+<li>Nhập email tài khoản đã đăng ký và chọn vai trò cần dùng.</li>
+<li>Kiểm tra lại email, workspace và vai trò trước khi lưu. Không thêm người vào Supabase Organization chỉ để cho họ sử dụng ERP.</li>
+<li>Thành viên đăng nhập hoặc tải lại ứng dụng, chọn workspace vừa được cấp quyền.</li>
+<li>Thử bằng chính tài khoản thành viên để xác nhận phạm vi xem và thao tác.</li>
+</ol>
+<p><strong>Ứng dụng không tự gửi email mời thành viên.</strong> Việc nhập email trong màn hình này chỉ tra tài khoản đã tồn tại, đã xác nhận email và cấp quyền trong workspace. Nếu hệ thống không tìm thấy tài khoản đủ điều kiện, kiểm tra email, trạng thái xác nhận và project đăng ký; không tự tạo mật khẩu hoặc tài khoản dùng chung cho người khác.</p>
+<p>Danh sách nhóm hiển thị email đã che một phần để hạn chế lộ thông tin. Muốn đổi quyền người đã có, dùng thao tác đổi vai trò. Khi cần thu hồi, dùng thao tác xóa thành viên khỏi workspace; đây không phải xóa tài khoản Auth hoặc xóa chứng từ họ từng tạo. Hệ thống chặn tự xóa membership và chặn mất chủ shop cuối cùng. Chủ shop chỉ có thể tự hạ quyền khi còn chủ shop khác trong workspace.</p>
+<table>
+<thead>
+<tr>
+<th>Vai trò</th>
+<th>Dùng cho công việc nào</th>
+<th>Quyền nghiệp vụ nền V1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Chủ shop — <code>owner</code></td>
+<td>Chủ dữ liệu và người chịu trách nhiệm vận hành</td>
+<td>Quản lý nhóm, danh mục, số dư đầu, nhập dữ liệu, ghi sổ và đảo chứng từ</td>
+</tr>
+<tr>
+<td>Quản lý — <code>manager</code></td>
+<td>Người kiểm tra và duyệt công việc hàng ngày</td>
+<td>Danh mục thông thường, tạo nháp và ghi sổ; không quản lý số dư đầu hoặc đảo theo quyền V1</td>
+</tr>
+<tr>
+<td>Nhân viên — <code>staff</code></td>
+<td>Người nhập liệu</td>
+<td>Tạo/sửa nháp trong phạm vi được cấp; không ghi sổ</td>
+</tr>
+<tr>
+<td>Chỉ xem — <code>viewer</code></td>
+<td>Người theo dõi</td>
+<td>Xem dữ liệu được cấp; không tạo hoặc sửa chứng từ</td>
+</tr>
+</tbody>
+</table>
+<p>Cấp quyền tối thiểu cần thiết. Quản lý nhóm phải do chủ shop thực hiện; thử trường hợp sửa vai trò hoặc thu hồi thành viên bằng tài khoản không phải chủ shop để xác nhận máy chủ từ chối. Không coi việc ẩn một nút trên giao diện là bằng chứng phân quyền đủ.</p>
+<h2 id="6-oc-bao-cao-va-phan-biet-so-lieu">6. Đọc báo cáo và phân biệt số liệu</h2>
+<p>V1.1 bổ sung hàm lấy số tổng hợp từ database để báo cáo trong chế độ online dùng cùng phạm vi workspace và kỳ. Một lần tải báo cáo lấy tổng quan, tài khoản, nhóm tiền, phát sinh nhập theo SKU và các cảnh báo từ cùng một lần đọc dữ liệu. Báo cáo vẫn dựa trên các nghiệp vụ hiện có: nhập kho và thu chi đã ghi sổ.</p>
+<table>
+<thead>
+<tr>
+<th>Số liệu</th>
+<th>Ý nghĩa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nháp/chờ đối chiếu</td>
+<td>Thông tin đã lưu, chưa làm tăng kho hoặc thay đổi dòng tiền đã ghi</td>
+</tr>
+<tr>
+<td>Phát sinh nhập kho</td>
+<td>Chuyển động do phiếu nhập đã ghi sổ, có tính phát sinh đảo theo ngày</td>
+</tr>
+<tr>
+<td>Thu, chi trong kỳ</td>
+<td>Tiền đã ghi trên tài khoản trong khoảng ngày đã chọn</td>
+</tr>
+<tr>
+<td>Số dư đến ngày</td>
+<td>Số dư đầu đã xác nhận cộng các phát sinh tiền hợp lệ tới ngày chọn</td>
+</tr>
+<tr>
+<td>Nhóm chi</td>
+<td>Phân tích dòng tiền theo loại; chưa phải chi phí kế toán dồn tích đầy đủ</td>
+</tr>
+</tbody>
+</table>
+<p>Nếu tài khoản chưa xác nhận ngày/số dư đầu, báo cáo phải cho thấy phần chưa đủ căn cứ. Không gộp số dư chưa biết thành số dư bằng không đã xác nhận.</p>
+<p>Tài khoản mở sổ giữa kỳ phải hiển thị riêng phần số dư được đưa vào trong kỳ; không làm cho số dư này giống tiền thu từ hoạt động bán hàng. Tài khoản có ngày mở sổ sau ngày kết thúc kỳ chưa được tính vào số dư đến ngày đó.</p>
+<p>Chọn kỳ → tải báo cáo → mở các chứng từ tạo ra con số đó → so lại tổng. Giữ một phiếu nháp trong bài thử để xác nhận nháp không lọt vào báo cáo đã ghi. Thử ngày trước và sau một phiếu đảo để kiểm tra lịch sử.</p>
+<p>V1.1 chưa chứng minh tồn kho khả dụng đầy đủ khi chưa có lịch sử bán/xuất/hoàn, và chưa có giá vốn FIFO bán hay sổ cái kép. Không dùng tổng nhập làm tồn thực tế hoặc tiền thu về làm doanh thu đã xác nhận.</p>
+<h2 id="7-nhap-du-lieu-rieng-cua-chidi">7. Nhập dữ liệu riêng của ChiDi</h2>
+<ol>
+<li>Hoàn tất thử đăng nhập, quyền và nghiệp vụ với vài phiếu thử trước khi nhập file riêng.</li>
+<li>Chọn đúng workspace nhận dữ liệu. Đọc lại tên workspace trên giao diện.</li>
+<li>Mở <strong>Đối chiếu dữ liệu</strong>, chọn JSON cần nhập từ thư mục <code>data/</code>.</li>
+<li>Xem trước số lượng và tổng. Bản <code>chidi-import-2026-09-10.json</code> đã bàn giao có 17 dòng nhập hàng, 1.566 sản phẩm, 79.043.000 đ tiền hàng và 12 dòng thu chi. Nếu dùng file xuất mới, so với số mới của chính file đó.</li>
+<li>Nhấn nhập vào workspace hiện tại. Đây là thao tác đưa dữ liệu đã chọn lên cloud; ứng dụng không tự tải toàn bộ thư mục <code>data/</code>.</li>
+<li>Kiểm tra lịch sử nhập, số dòng thêm, dòng bỏ qua và xung đột. Nhập lại cùng dữ liệu không được nhân đôi chứng từ.</li>
+<li>Giữ nguyên nháp với SKU tạm, ngày ước tính, khoản chi chưa biết tài khoản hoặc chưa đủ chứng từ. Chỉ ghi sổ sau khi đối chiếu.</li>
+</ol>
+<p>Dữ liệu tháng 9 đã có trong workbook sau bản tháng 8. Không gán tất cả giao dịch về tháng 8. Ngày nhập được chọn theo ước tính trước đây vẫn là ngày ước tính. Hai dòng nguồn đánh dấu đã ghi cũng tiếp tục qua hàng chờ của website để tránh nhận nhầm trạng thái nguồn thành kết quả nghiệm thu.</p>
+<p>Không đổi mã nguồn để né cảnh báo xung đột hoặc nhập cùng dữ liệu vào nhiều workspace rồi cộng báo cáo. File Excel gốc phải được giữ nguyên để đối chiếu.</p>
+<h2 id="8-bai-kiem-tra-cloud-can-hoan-tat">8. Bài kiểm tra cloud cần hoàn tất</h2>
+<p>Các mục dưới đây là việc cần làm với project Supabase thật, <strong>không phải danh sách đã đạt</strong>.</p>
+<table>
+<thead>
+<tr>
+<th>Bài thử</th>
+<th>Kết quả cần thấy</th>
+<th>Bằng chứng nên lưu</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Migration 002</td>
+<td>Query thành công trong đúng project; dữ liệu V1 giữ nguyên</td>
+<td>Tên project, thời điểm, trạng thái chạy SQL; không lưu secret</td>
+</tr>
+<tr>
+<td>Auth</td>
+<td>Đăng ký, xác nhận email, đăng nhập/đăng xuất hoạt động đúng URL</td>
+<td>Tài khoản thử và kết quả, không ghi mật khẩu/token</td>
+</tr>
+<tr>
+<td>Workspace</td>
+<td>Chọn đúng workspace; dữ liệu workspace khác không lẫn vào</td>
+<td>Tên workspace và tổng trước/sau chuyển</td>
+</tr>
+<tr>
+<td>Thành viên</td>
+<td>Chủ shop thêm tài khoản đã có; tài khoản khác không tự nâng quyền</td>
+<td>Vai trò trước/sau và lỗi từ chối quyền</td>
+</tr>
+<tr>
+<td>Quyền API</td>
+<td>Gọi API/RPC bằng người không có quyền bị từ chối</td>
+<td>Mã phản hồi, không lưu Authorization header</td>
+</tr>
+<tr>
+<td>Ghi sổ</td>
+<td>Nháp không tạo sổ; ghi sổ một lần; gửi lại không tăng thêm</td>
+<td>Mã phiếu và số phát sinh trước/sau</td>
+</tr>
+<tr>
+<td>Báo cáo</td>
+<td>Tổng theo đúng workspace/kỳ; ngày đảo ảnh hưởng đúng kỳ</td>
+<td>Tổng độc lập so với báo cáo</td>
+</tr>
+<tr>
+<td>Nhiều người</td>
+<td>Hai phiên gửi cùng chứng từ không tạo hai phát sinh</td>
+<td>Kết quả của hai phiên và số dòng ledger</td>
+</tr>
+<tr>
+<td>Sao lưu/khôi phục</td>
+<td>Khôi phục bản sao sang môi trường thử và đối chiếu tổng</td>
+<td>Thời điểm backup, nơi khôi phục và kết quả</td>
+</tr>
+</tbody>
+</table>
+<p>Kiểm thử trên máy có thể kiểm quy tắc và SQL, nhưng không thay cho Supabase Auth thật, cấu hình email, JWT/REST, nhiều kết nối và khôi phục cloud. Khi chưa có kết quả, giữ trạng thái “chưa kiểm chứng”.</p>
+<h2 id="9-xu-ly-vuong-mac-thuong-gap">9. Xử lý vướng mắc thường gặp</h2>
+<table>
+<thead>
+<tr>
+<th>Hiện tượng</th>
+<th>Việc làm tiếp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ứng dụng báo thiếu nâng cấp database</td>
+<td>Kiểm tra <code>002_operations.sql</code> đã chạy trong cùng project cấu hình frontend; không rerun V1</td>
+</tr>
+<tr>
+<td>Vẫn hiện chế độ demo</td>
+<td>Kiểm chế độ và khởi động lại Vite; demo và cloud không đồng bộ ngầm</td>
+</tr>
+<tr>
+<td>Đăng nhập được nhưng không thấy shop</td>
+<td>Kiểm membership và workspace; tài khoản mới không tự có quyền xem shop cũ</td>
+</tr>
+<tr>
+<td>Không tìm thấy email thành viên</td>
+<td>Người đó phải đăng ký trong đúng Supabase project; kiểm chính tả email</td>
+</tr>
+<tr>
+<td>Thành viên không có nút ghi sổ</td>
+<td>Kiểm vai trò; staff/viewer không được ghi sổ theo thiết kế</td>
+</tr>
+<tr>
+<td>Báo cáo chưa có số</td>
+<td>Kiểm kỳ, workspace, trạng thái đã ghi và số dư đầu; đừng ghi sổ nháp chỉ để làm đầy dashboard</td>
+</tr>
+<tr>
+<td>Xác nhận email mở nhầm cổng/tên miền</td>
+<td>Đối chiếu URL thực chạy với cấu hình Auth; không lấy ví dụ tài liệu làm URL vận hành mặc định</td>
+</tr>
+<tr>
+<td>Lỗi quyền khi sửa bảng trực tiếp</td>
+<td>Dùng nghiệp vụ trên ứng dụng; không nới quyền RLS/grants</td>
+</tr>
+</tbody>
+</table>
+<h2 id="10-thoi-quen-van-hanh-hang-ngay">10. Thói quen vận hành hàng ngày</h2>
+<p>Đầu ngày chọn đúng workspace và kỳ. Nhập liệu thành nháp, đối chiếu chứng từ, rồi người có quyền ghi sổ. Cuối ngày so thu chi với tài khoản thực, xem phiếu chờ và lịch sử thay đổi. Khi sửa sai chứng từ đã ghi, dùng nghiệp vụ đảo có lý do, giữ bản gốc để truy lại.</p>
+<p>Database cần bản sao ngoài project và cần thử khôi phục. Bản demo trong trình duyệt hoặc CSV một màn hình không thay cho backup PostgreSQL. Các phân hệ bán hàng, vận chuyển/COD, công nợ, kế toán kép, thuế, lương và tài sản tiếp tục theo <a href="#architecture" data-page="architecture">kiến trúc ERP</a>; chỉ chuyển thành chức năng vận hành sau khi có code và nghiệm thu tương ứng.</p><p class="sourcefile"><a href="THIET_LAP_VAN_HANH_V11.md">Mở bản Markdown gốc</a></p></article><article id="history" data-panel hidden><h1 id="lich-su-thay-oi-chidi-online-erp">Lịch sử thay đổi ChiDi Online ERP</h1>
+<p>Tài liệu ghi thay đổi theo phiên bản và phân biệt kết quả kiểm tra trên máy với kiểm tra trên Supabase thật. Ngày ghi theo múi giờ vận hành Việt Nam.</p>
+<h2 id="v11-11092026-code-va-kiem-tra-tren-may-hoan-tat">V1.1 — 11/09/2026 — code và kiểm tra trên máy hoàn tất</h2>
+<p>Người dùng cho biết đã hoàn tất bước 1–6 của thiết lập Supabase; <code>.env.local</code> đã có trong project. Kiểm tra chỉ đọc đã kết nối được dịch vụ và thấy các bảng nền. Chưa có bằng chứng hoàn tất đăng nhập/tạo workspace ở bước 7; chưa coi toàn bộ luồng cloud đã nghiệm thu.</p>
+<h3 id="pham-vi-thay-oi-lan-nay">Phạm vi thay đổi lần này</h3>
+<ul>
+<li>Bổ sung migration <code>002_operations.sql</code> sau <code>001_core.sql</code> cho quản lý workspace/thành viên và báo cáo tổng hợp máy chủ. Giữ dữ liệu V1, không chạy lại migration nền.</li>
+<li>Thêm bộ chọn workspace để tài khoản có nhiều membership làm việc trong đúng bộ dữ liệu.</li>
+<li>Thêm quản lý vai trò cho thành viên đã đăng ký bằng email trong cùng Supabase project. Không tự gửi email mời hoặc tạo mật khẩu cho người khác.</li>
+<li>Dùng số liệu tổng hợp phía database cho báo cáo cloud, có kiểm tra workspace và kỳ.</li>
+<li>Đồng bộ địa chỉ chạy ứng dụng với <code>http://localhost:2000</code>; giữ máy chủ E2E riêng ở chế độ demo.</li>
+<li>Thêm <a href="#operations" data-page="operations">hướng dẫn vận hành V1.1</a>, gồm chạy nâng cấp, hoàn tất Auth, làm việc nhóm, đối chiếu dữ liệu và kiểm tra cloud.</li>
+<li>Bảo vệ phản hồi bất đồng bộ khi đổi người dùng/workspace hoặc đăng xuất; demo lỗi không chặn màn hình cloud.</li>
+<li>Chặn bỏ qua dòng Excel thiếu ID nhưng có tiền/số lượng, thống nhất cờ ngày ước tính, thêm căn cứ ngày/nguồn vào CSV và chặn kết quả đọc file cũ thay file vừa chọn.</li>
+<li>Chuyển lại snapshot 11/09, giữ nguyên SHA-256 và tổng nguồn; không ghi workbook.</li>
+</ul>
+<h3 id="kiem-tra">Kiểm tra</h3>
+<table>
+<thead>
+<tr>
+<th>Phần</th>
+<th>Trạng thái ở thời điểm soạn</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mã nguồn và migration V1.1</td>
+<td>Đã hoàn thành đợt nâng cấp; migration 002 đã chạy trên PostgreSQL cục bộ</td>
+</tr>
+<tr>
+<td>Unit test nghiệp vụ và repository</td>
+<td>10/10 đạt</td>
+</tr>
+<tr>
+<td>SQL/RLS/RPC và quyền thành viên</td>
+<td>V1 25/25; V1.1 41/41 đạt</td>
+</tr>
+<tr>
+<td>E2E demo</td>
+<td>5/5 đạt</td>
+</tr>
+<tr>
+<td>E2E bộ chọn workspace, nhóm và báo cáo</td>
+<td>6/6 đạt với Auth/API mô phỏng, không gửi cloud thật</td>
+</tr>
+<tr>
+<td>Script xuất Excel</td>
+<td>5/5 test dữ liệu tổng hợp đạt</td>
+</tr>
+<tr>
+<td>Build và kiểm cấu hình frontend</td>
+<td>5/5 đạt; dist cuối dùng cấu hình cloud thật; npm audit báo 0 lỗ hổng</td>
+</tr>
+<tr>
+<td>Kiểm kết nối cloud chỉ đọc</td>
+<td>Cấu hình publishable hợp lệ; dịch vụ Auth trả HTTP 200; đăng ký email bật và yêu cầu xác nhận; có bảng <code>workspaces</code>, <code>purchase_receipts</code>, <code>cash_transactions</code></td>
+</tr>
+<tr>
+<td>Chặn truy cập cloud khi chưa đăng nhập</td>
+<td>Truy vấn SELECT của anonymous bị từ chối với mã <code>42501</code> trong kiểm tra chỉ đọc</td>
+</tr>
+<tr>
+<td>Chạy migration 002 trên project cloud</td>
+<td>Chờ chủ project chạy một lần theo hướng dẫn</td>
+</tr>
+<tr>
+<td>Supabase Auth, email/redirect, phiên thật</td>
+<td>Chưa nghiệm thu</td>
+</tr>
+<tr>
+<td>Cloud API hai tài khoản/hai workspace</td>
+<td>Chưa nghiệm thu</td>
+</tr>
+<tr>
+<td>Cloud nhiều kết nối và backup/restore</td>
+<td>Chưa nghiệm thu</td>
+</tr>
+</tbody>
+</table>
+<h3 id="gioi-han-giu-nguyen">Giới hạn giữ nguyên</h3>
+<p>Đây là nền ERP cho danh mục, nhập hàng, thu chi, dữ liệu chờ đối chiếu, sổ phát sinh và nhật ký. Chưa công bố hoàn thiện hệ thống bán hàng/COD, công nợ hóa đơn, FIFO bán, kế toán kép, khóa kỳ hoặc P&amp;L đầy đủ. Dữ liệu nguồn nhập vào vẫn thành nháp; ước tính ngày và khoản chi chưa biết tài khoản không tự trở thành dữ liệu đã xác minh.</p>
+<h2 id="v1-10092026-nen-react-javascript-supabase">V1 — 10/09/2026 — nền React JavaScript + Supabase</h2>
+<h3 id="a-ban-giao">Đã bàn giao</h3>
+<ul>
+<li>React JavaScript/JSX + Vite; chế độ demo lưu trên trình duyệt và adapter Supabase tách biệt.</li>
+<li>Danh mục sản phẩm, nhà cung cấp, kho, tài khoản tiền; phiếu nhập hàng và thu chi nháp.</li>
+<li>Ghi sổ qua RPC, chống ghi lặp, khóa sửa chứng từ đã ghi và nghiệp vụ đảo giữ bản gốc.</li>
+<li>Migration <code>001_core.sql</code>: workspace, membership, RLS, kiểm tra tham chiếu cùng workspace, sổ phát sinh và nhật ký.</li>
+<li>Chuyển dữ liệu Excel sang JSON có dấu vết nguồn; nhập lại không tạo trùng, thay đổi cùng mã nguồn báo xung đột.</li>
+<li>Tài liệu kiến trúc, prompt phát triển đầy đủ, sơ đồ, hướng dẫn và nguồn nghiên cứu.</li>
+</ul>
+<h3 id="ket-qua-ghi-nhan-o-moc-v1">Kết quả ghi nhận ở mốc V1</h3>
+<p>Ở nền V1 đã chạy 10/10 kiểm thử nghiệp vụ JavaScript, 25/25 kiểm thử database PGlite và 5/5 hành trình trình duyệt. Các kiểm tra build/cấu hình được bổ sung/chạy đầy đủ ở đợt V1.1; kết quả hiện hành xem <a href="#checks" data-page="checks">VERIFICATION.md</a>.</p>
+<p>Kiểm thử database V1 dùng PostgreSQL PGlite với lớp Auth mô phỏng; E2E dùng demo. Supabase Auth/REST online, email, nhiều kết nối đồng thời và khôi phục cloud chưa được nghiệm thu tại mốc V1.</p>
+<h3 id="du-lieu-nguon-tai-moc-v1">Dữ liệu nguồn tại mốc V1</h3>
+<p>File JSON ngày 10/09/2026 chứa 3 nhà cung cấp, 17 SKU, 17 dòng nhập hàng với 1.566 sản phẩm và 79.043.000 đ tiền hàng, cùng 12 dòng thu chi. Đây là tổng đầu vào từ workbook đang có; không phải kết luận tồn thực tế, lợi nhuận hoặc công nợ đã xác nhận.</p><p class="sourcefile"><a href="CHANGELOG.md">Mở bản Markdown gốc</a></p></article><article id="setup" data-panel hidden><h1 id="tao-supabase-va-ket-noi-chidi-huong-dan-tung-buoc">Tạo Supabase và kết nối ChiDi — hướng dẫn từng bước</h1>
+<blockquote>
+<p>Cập nhật 11/09/2026: bạn đã thực hiện bước 1–6; kết nối chỉ đọc đã đạt và app đã chuyển sang cloud tại <strong>http://localhost:2000</strong>. Bước tiếp theo xem <a href="#operations" data-page="operations">hướng dẫn V1.1</a>: chạy migration 002 bổ sung, rồi đăng nhập/tạo workspace. Không chạy lại 001 trong project hiện có.</p>
+</blockquote>
+<p>Tài liệu này giữ đầy đủ quy trình cài lần đầu để dùng khi cần tạo môi trường mới. Với project của bạn, URL/key đã có và app dùng cloud; tiếp tục bằng hướng dẫn V1.1 ở trên. Chế độ chạy thử vẫn mở được từ màn hình đăng nhập, không cần sửa mã React.</p>
+<p>Hướng dẫn kiểm tra ngày 10/09/2026. Tên/vị trí menu có thể thay đổi nhẹ. Các bước dưới đây dành cho <strong>một Supabase project mới, chưa chứa ứng dụng khác</strong>.</p>
+<h2 id="1-phan-biet-ba-loai-tai-khoanthong-tin">1. Phân biệt ba loại tài khoản/thông tin</h2>
+<table>
+<thead>
+<tr>
+<th>Thành phần</th>
+<th>Ý nghĩa</th>
+<th>Nơi dùng</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tài khoản Supabase Dashboard</td>
+<td>Chủ sở hữu hạ tầng database</td>
+<td>Website quản trị Supabase</td>
+</tr>
+<tr>
+<td>Tài khoản đăng nhập ChiDi</td>
+<td>Người sử dụng ERP</td>
+<td>Màn hình đăng ký/đăng nhập của ChiDi, quản lý bởi Supabase Auth</td>
+</tr>
+<tr>
+<td>Mật khẩu database</td>
+<td>Mật khẩu quản trị PostgreSQL</td>
+<td>Công cụ quản trị/backup; không nhập vào React</td>
+</tr>
+</tbody>
+</table>
+<p>Cùng một email có thể dùng cho hai tài khoản đầu, nhưng mật khẩu/phiên đăng nhập không tự dùng chung. Project URL là địa chỉ API database, không phải địa chỉ website ERP đã được xuất bản.</p>
+<h2 id="2-tao-tai-khoan-va-project">2. Tạo tài khoản và project</h2>
+<ol>
+<li>Mở <a href="https://supabase.com/dashboard">Supabase Dashboard</a>. Chọn đăng ký bằng email hoặc GitHub theo lựa chọn màn hình; hoàn tất xác nhận nếu được yêu cầu.</li>
+<li>Tạo <strong>Organization</strong> cá nhân, tên gợi ý <code>ChiDi</code>. Organization là nơi quản lý project và gói dịch vụ, không phải workspace trong ERP.</li>
+<li>Chọn <strong>New project</strong>. Chọn organization vừa tạo và gói <strong>Free</strong> nếu màn hình yêu cầu chọn gói.</li>
+<li>Đặt tên project, ví dụ <code>chidi-erp-dev</code>. Dùng project thử nghiệm để nghiệm thu trước dữ liệu vận hành.</li>
+<li>Tạo mật khẩu database mạnh, lưu trong trình quản lý mật khẩu. Không dán mật khẩu này vào <code>.env.local</code> của frontend. </li>
+<li>Chọn region gần Việt Nam, chẳng hạn Singapore nếu tài khoản đang cung cấp. Chờ project hoàn tất khởi tạo.</li>
+<li>Ghi lại tên project để tránh chạy SQL nhầm project sau này.</li>
+</ol>
+<p>Supabase có hướng dẫn khởi tạo project và kết nối React bằng SDK chính thức. <a href="https://supabase.com/docs/guides/getting-started/quickstarts/reactjs">React quickstart</a>.</p>
+<h2 id="3-tao-cac-bang-va-quy-tac-nghiep-vu">3. Tạo các bảng và quy tắc nghiệp vụ</h2>
+<ol>
+<li>Trong project mới, mở <strong>SQL Editor → New query</strong>.</li>
+<li>Mở file <a href="../supabase/migrations/001_core.sql">001_core.sql</a> trong project ChiDi. Sao chép <strong>toàn bộ</strong> nội dung.</li>
+<li>Dán vào SQL Editor, nhìn lại tên project rồi nhấn <strong>Run</strong>.</li>
+<li>Khi thành công, Table Editor/schema <code>public</code> có các bảng như <code>workspaces</code>, <code>products</code>, <code>purchase_receipts</code>, <code>cash_transactions</code>, <code>stock_movements</code>, <code>cash_movements</code>.</li>
+<li>Ban đầu chưa có sản phẩm/chứng từ. Chưa cần nhập tay các dòng trong Table Editor. Ứng dụng sẽ tạo workspace và danh mục nền khi bạn đăng nhập.</li>
+</ol>
+<p>Migration được bọc trong giao dịch <code>begin/commit</code>. Chạy một lần. Nếu báo <code>relation already exists</code>, có thể migration đã chạy hoặc project có dữ liệu trước đó; không xóa bảng để cố chạy lại. Kiểm tra project, lưu nguyên lỗi và dùng migration bổ sung nếu đã vận hành.</p>
+<p>File SQL cấp quyền đọc theo workspace và chỉ cho phép ghi qua hàm nghiệp vụ RPC. Không bật quyền đọc/ghi công khai để chữa lỗi giao diện. <a href="https://supabase.com/docs/guides/database/postgres/row-level-security">RLS</a>.</p>
+<h2 id="4-cau-hinh-ang-nhap-va-email">4. Cấu hình đăng nhập và email</h2>
+<p>Trong <strong>Authentication → URL Configuration</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Trường</th>
+<th>Giá trị lúc chạy trên máy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Site URL</td>
+<td><code>http://localhost:2000</code></td>
+</tr>
+<tr>
+<td>Redirect URLs</td>
+<td>Thêm <code>https://chidivibes.vn</code> và <code>https://chidivibes.vn/</code> nếu dùng tên miền này</td>
+</tr>
+<tr>
+<td>Nếu cũng dùng localhost</td>
+<td>Thêm <code>http://localhost:2000</code> và <code>http://localhost:2000/</code></td>
+</tr>
+</tbody>
+</table>
+<p>URL xác nhận email và đặt lại mật khẩu phải khớp danh sách cho phép. Khi xuất bản website, thay Site URL bằng tên miền HTTPS thật và thêm chính xác URL đó. Không dùng wildcard rộng cho website thật. <a href="https://supabase.com/docs/guides/auth/redirect-urls">Cấu hình redirect</a>.</p>
+<p>Trong phần nhà cung cấp đăng nhập, kiểm tra <strong>Email</strong> được bật; giữ xác nhận email. Lần thử đầu, dùng email của chính tài khoản quản trị organization.</p>
+<p><strong>Email mặc định có giới hạn:</strong> SMTP thử nghiệm của Supabase chỉ gửi tới địa chỉ thuộc team của project, hạn mức hiện công bố là 2 email/giờ. Để nhân viên/khách đăng ký bằng email khác, cấu hình <strong>Custom SMTP</strong> trong phần Authentication theo dịch vụ gửi mail của bạn. Không cấp quyền quản trị organization cho mọi nhân viên chỉ để nhận email. Việc mời nhân viên vào ERP và quyền quản trị Supabase là hai việc khác nhau. <a href="https://supabase.com/docs/guides/auth/auth-smtp">Hướng dẫn SMTP chính thức</a>.</p>
+<h2 id="5-lay-project-url-va-publishable-key">5. Lấy Project URL và publishable key</h2>
+<ol>
+<li>Mở nút <strong>Connect</strong> của project. Chọn hướng dẫn React/JavaScript nếu có.</li>
+<li>Sao chép <strong>Project URL</strong>, dạng <code>https://ma-project.supabase.co</code>.</li>
+<li>Sao chép <strong>Publishable key</strong>, dạng <code>sb_publishable_...</code>. Có thể xem/tạo key tại <strong>Settings → API Keys</strong>.</li>
+<li>Key này được dùng trong trình duyệt; quyền người dùng vẫn được kiểm tra bằng Auth + RLS. Không chọn <code>sb_secret_...</code>, <code>service_role</code>, JWT đăng nhập cá nhân hoặc mật khẩu PostgreSQL.</li>
+</ol>
+<p>Ưu tiên publishable key mới. Legacy <code>anon</code> còn được SDK hỗ trợ để tương thích, nhưng không phải lựa chọn hướng dẫn chính cho project mới. <a href="https://supabase.com/docs/guides/getting-started/api-keys">API keys</a>.</p>
+<h2 id="6-ien-vao-project-chidi">6. Điền vào project ChiDi</h2>
+<p>Trong thư mục project, sao chép <code>.env.example</code> thành <code>.env.local</code> bằng Explorer/VS Code. Đừng đổi tên thành <code>.env.local.txt</code>.</p>
+<pre><code class="language-dotenv">VITE_SUPABASE_URL=https://ma-project-cua-ban.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_gia_tri_cua_ban
+VITE_DEMO_MODE=false
+</code></pre>
+<p>Không thêm dấu ngoặc nhọn hoặc dấu chấm ba chấm vào giá trị thật. <code>.env.local</code> đã nằm trong <code>.gitignore</code>. Code có kiểm tra để chặn secret/service-role key bị đặt nhầm vào biến frontend, nhưng bạn vẫn cần chọn đúng key.</p>
+<p>Nếu ứng dụng đang chạy: tại cửa sổ lệnh nhấn <code>Ctrl+C</code>, rồi mở lại <strong>START_CHIDI.cmd</strong>. Vite cần khởi động lại để nhận biến môi trường. Khi deploy một bản build, phải build lại với cấu hình cloud; không thể chỉ sửa <code>.env.local</code> sau khi đã upload <code>dist/</code>.</p>
+<p>Muốn quay lại thử nghiệm trên máy, đặt <code>VITE_DEMO_MODE=true</code> và khởi động lại. Hai nơi lưu dữ liệu độc lập. Không có tự chuyển dữ liệu demo sang cloud.</p>
+<h2 id="7-ang-ky-va-tao-workspace">7. Đăng ký và tạo workspace</h2>
+<ol>
+<li>Mở <code>http://localhost:2000</code>. Bạn sẽ thấy màn hình đăng nhập thay vì dashboard demo.</li>
+<li>Chọn <strong>Tạo tài khoản</strong>, dùng email của bạn và mật khẩu mới cho ERP, tối thiểu 8 ký tự.</li>
+<li>Mở email xác nhận trong cùng trình duyệt đang chạy ChiDi. Trở lại đăng nhập nếu cần.</li>
+<li>Chọn <strong>Tạo workspace ChiDi</strong>. Người tạo có vai trò <code>owner</code>.</li>
+<li>Hệ thống tạo kho chính và các tài khoản tiền nền; số dư/ngày mở sổ vẫn chưa được xác nhận.</li>
+<li>Kiểm tra góc trên có <strong>Supabase online</strong>. Nếu báo lỗi database, xử lý lỗi thay vì tiếp tục dùng bản chạy thử để tưởng dữ liệu đã online.</li>
+</ol>
+<p>V1.1 đã có bộ chọn workspace và màn hình cấp quyền cho thành viên đã đăng ký/xác nhận email, sau khi cài migration 002. Thành viên mới không tự thấy dữ liệu shop; owner vào <strong>Thiết lập → Thành viên và quyền</strong> để cấp quyền. Không tự gửi thư mời và không chia sẻ một tài khoản chủ shop cho cả nhóm. Xem <a href="#operations" data-page="operations">vận hành V1.1</a>.</p>
+<h2 id="8-nhap-du-lieu-excel-a-chuyen-oi">8. Nhập dữ liệu Excel đã chuyển đổi</h2>
+<ol>
+<li>Mở <strong>Đối chiếu dữ liệu → Chọn file dữ liệu ChiDi</strong>.</li>
+<li>Chọn <code>data/chidi-import-2026-09-11-validated.json</code> trong project.</li>
+<li>Xem trước: 17 SKU, 17 dòng phiếu nhập và 12 thu chi; đối chiếu với snapshot đang bàn giao.</li>
+<li>Nhấn <strong>Nhập vào workspace hiện tại</strong>. Việc này gửi dữ liệu đã chọn tới project cloud đang cấu hình.</li>
+<li>Xem lịch sử nhập. Nhập lại cùng file không tạo thêm bản ghi. Nếu file Excel đổi và xuất lại, dòng có mã cũ thay đổi được báo xung đột, không tự ghi đè.</li>
+<li>Xác nhận danh mục SKU, ngày thực tế, tài khoản và số dư đầu. Chỉ ghi sổ từng chứng từ đã có căn cứ. Những khoản bạn đã trả lời “chưa xác định” tiếp tục để nháp.</li>
+</ol>
+<p>Tất cả chứng từ nhập từ Excel ở trạng thái chờ, kể cả nguồn đánh dấu “Có”. Việc cho phép chọn ngày random trong lịch cũ không biến ngày đó thành ngày đã kiểm chứng.</p>
+<h2 id="9-kiem-tra-cloud-truoc-dung-lam-du-lieu-chinh">9. Kiểm tra cloud trước dùng làm dữ liệu chính</h2>
+<p>Thực hiện trên project thử nghiệm, dùng dữ liệu minh họa tự tạo:</p>
+<ul>
+<li>Đăng nhập, đăng xuất, xác nhận email và đặt lại mật khẩu hoạt động đúng URL.</li>
+<li>Tạo phiếu nháp: kho chưa tăng. Xác nhận SKU/ngày rồi ghi sổ: kho tăng đúng một lần. Nhấn lại/tải lại không tăng thêm.</li>
+<li>Thu chi thiếu số dư đầu không ghi được; thu chi đủ căn cứ làm thay đổi đúng tài khoản.</li>
+<li>Chủ shop đảo chứng từ: bản gốc giữ lại, phát sinh ngược chiều có lý do.</li>
+<li>Với tài khoản thứ hai và workspace khác, đọc REST/RPC không được xem hoặc sửa dữ liệu workspace thứ nhất. Vai trò nhân viên không ghi sổ được. Kiểm tra bằng API, không chỉ nhìn nút bị ẩn.</li>
+<li>So số lượng/tổng nhập giữa JSON và database; chứng từ chờ không lọt vào báo cáo đã ghi.</li>
+<li>Xuất backup và thử khôi phục sang project thử nghiệm khác; kiểm tra người dùng, membership, chứng từ và tổng sổ sau khôi phục.</li>
+</ul>
+<p>Các kiểm tra SQL trên máy đã được tự động hóa. Các bước Auth, API thật, email, cloud concurrency và khôi phục trên tài khoản của bạn <strong>chưa được thực hiện</strong>, do bạn chọn bổ sung kết nối sau.</p>
+<h2 id="10-han-muc-sao-luu-va-van-hanh">10. Hạn mức, sao lưu và vận hành</h2>
+<p>Free hiện có 500 MB database, 1 GB Storage, tối đa 2 project hoạt động; có thể pause sau một tuần không hoạt động và không gồm automatic backups. Đây là điểm khởi đầu phù hợp thử nghiệm; khi tăng dữ liệu/độ phụ thuộc cần đánh giá gói và ngân sách mới. <a href="https://supabase.com/pricing">Supabase Pricing</a>.</p>
+<p>Thiết lập lịch xuất PostgreSQL bằng Supabase CLI hoặc <code>pg_dump</code>, lưu ngoài máy vận hành và ngoài cùng project. File CSV của một bảng hoặc bản sao demo không thay thế backup cloud. Database backup không chứa nội dung tệp Storage: nếu sau này dùng tệp đính kèm, sao lưu cả tệp và metadata. Bảo vệ bản sao như dữ liệu gốc và thử khôi phục định kỳ. <a href="https://supabase.com/docs/guides/platform/backups">Database backups</a>.</p>
+<p>Khi chọn quy trình backup hằng ngày, mục tiêu mất dữ liệu tối đa về thiết kế có thể tới 24 giờ; chỉ coi đạt sau khi tự động chạy và thử khôi phục thành công. V1 không tự cung cấp backup scheduler hoặc cam kết thời gian phục hồi.</p>
+<h2 id="11-xu-ly-loi-thuong-gap">11. Xử lý lỗi thường gặp</h2>
+<table>
+<thead>
+<tr>
+<th>Hiện tượng</th>
+<th>Kiểm tra</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Vẫn vào demo</td>
+<td><code>VITE_DEMO_MODE=false</code>, đúng <code>.env.local</code>, khởi động lại server</td>
+</tr>
+<tr>
+<td>URL/key không hợp lệ</td>
+<td>Copy lại từ đúng project; không dùng Dashboard URL hoặc secret key</td>
+</tr>
+<tr>
+<td><code>relation does not exist</code> / RPC không tìm thấy</td>
+<td>Migration đã chạy thành công trong cùng project chưa</td>
+</tr>
+<tr>
+<td><code>permission denied</code> khi ghi trực tiếp bảng</td>
+<td>Đây là thiết kế; dùng thao tác trên ứng dụng/RPC, không nới quyền công khai</td>
+</tr>
+<tr>
+<td><code>Email address not authorized</code></td>
+<td>Dùng email quản trị team cho thử nghiệm hoặc cấu hình SMTP riêng</td>
+</tr>
+<tr>
+<td>Không nhận email / <code>rate limit</code></td>
+<td>Kiểm tra spam, giới hạn gửi và cấu hình SMTP; tránh bấm liên tục</td>
+</tr>
+<tr>
+<td>Xác nhận email về sai địa chỉ</td>
+<td>Site URL và Redirect URLs phải khớp địa chỉ đang mở</td>
+</tr>
+<tr>
+<td>Project bị pause</td>
+<td>Mở Dashboard, resume project và chờ trạng thái sẵn sàng</td>
+</tr>
+<tr>
+<td>Import báo dòng thay đổi</td>
+<td>Mở nguồn để đối chiếu, giữ bản đã nhập; không đổi mã dòng để né cảnh báo</td>
+</tr>
+<tr>
+<td>Không biết tài khoản/ngày</td>
+<td>Giữ chứng từ nháp, chưa ghi sổ</td>
+</tr>
+<tr>
+<td>Cổng 5173 đang dùng</td>
+<td>Mở ứng dụng đang chạy hoặc dừng đúng server cũ bằng Ctrl+C</td>
+</tr>
+</tbody>
+</table>
+<p>Bạn không cần gửi mật khẩu database hoặc secret key để cấu hình frontend. Project URL và publishable key là hai giá trị cần điền; việc tạo tài khoản/xác nhận email do bạn thực hiện trong tài khoản của mình.</p><p class="sourcefile"><a href="SUPABASE_SETUP.md">Mở bản Markdown gốc</a></p></article><article id="guide" data-panel hidden><h1 id="huong-dan-su-dung-v1">Hướng dẫn sử dụng V1</h1>
+<p>Mở <strong>START_CHIDI.cmd</strong>, sau đó vào <code>http://localhost:2000</code>. Nếu chưa điền Supabase, nhãn góc trên là <strong>Chạy thử · lưu trên máy</strong>. Đổi trình duyệt hoặc đổi từ <code>127.0.0.1</code> sang <code>localhost</code> sẽ dùng vùng dữ liệu thử khác.</p>
+<h2 id="thuc-hanh-lan-au">Thực hành lần đầu</h2>
+<p>Tại Tổng quan nhấn <strong>Nạp dữ liệu minh họa</strong>. Các SKU, phiếu nhập và thu chi này chỉ để tập thao tác. Mọi chứng từ đều chờ xác nhận, nên kho/dòng tiền đã ghi bằng 0 là đúng. Mở Danh mục để xem mã hàng, mở Nhập hàng/Thu chi để xem các phiếu.</p>
+<h2 id="nhap-hang">Nhập hàng</h2>
+<ol>
+<li>Trong Danh mục, thêm nhà cung cấp rồi thêm sản phẩm. Mã giữ cố định; tên và giá tham khảo được sửa theo quyền.</li>
+<li>Chỉ bỏ cờ <strong>SKU tạm</strong> sau khi xác nhận mẫu, màu, size thực tế.</li>
+<li>Trong Nhập hàng, chọn <strong>Tạo phiếu nhập</strong>, chọn SKU/NCC/kho, điền ngày, số lượng, đơn giá và phí có căn cứ.</li>
+<li>Nếu ngày chưa chắc, bật <strong>Ngày đang ước tính</strong>. Nhấn <strong>Lưu chờ xác nhận</strong>.</li>
+<li>So phiếu với chứng từ gốc. Nhấn <strong>Ghi sổ</strong>, đọc giá trị, xác nhận. Phiếu thiếu ngày thật/SKU thật/NCC/kho sẽ bị chặn.</li>
+<li>Xem Kho hàng. Đây là tổng nhận và đảo đã ghi; chưa trừ bán hàng vì V1 chưa có xuất bán.</li>
+</ol>
+<p>Một phiếu V1 có một SKU. Nếu cùng chuyến nhập nhiều SKU, tạo các dòng riêng và ghi chung số chứng từ/đợt vào ghi chú. Không gọi các phiếu này là công nợ đã xác nhận.</p>
+<h2 id="thu-chi">Thu chi</h2>
+<p>Chủ shop mở Danh mục → Tài khoản tiền để đối chiếu số dư đầu và ngày mở sổ. Không biết thì giữ trạng thái chưa xác nhận. Khi đã có phát sinh ghi sổ, ứng dụng khóa ba trường này để tránh làm lệch toàn bộ lịch sử số dư.</p>
+<p>Tạo thu chi với chiều Thu/Chi, nội dung, ngày thực tế, tài khoản, nhóm và số tiền. Tiền COD cũ chọn <strong>COD cũ chờ đối soát</strong>; tiền mua hàng chọn <strong>Tiền mua hàng chờ gắn PO</strong>. Không chọn doanh thu/chi phí để ép báo cáo khi chưa rõ nghiệp vụ. Các khoản thiếu tài khoản vẫn lưu nháp được, nhưng chưa ghi sổ được.</p>
+<p>V1 chưa có phiếu chuyển khoản nội bộ hai vế tự động. Không tạo một vế rồi coi là đã hoàn tất chuyển tiền; đưa quy trình này vào phần kế toán/tiền tiếp theo để hai tài khoản được ghi cùng giao dịch.</p>
+<h2 id="sua-sai">Sửa sai</h2>
+<p>Phiếu nháp: dùng nút bút chì để sửa. Phiếu đã ghi: chủ shop dùng <strong>Đảo</strong>, điền ngày và lý do ít nhất 10 ký tự, kiểm tra rồi xác nhận. Hệ thống giữ phiếu gốc và thêm chuyển động ngược. Sau đó lập phiếu mới đúng nếu nghiệp vụ cần. Không dùng đảo để che giấu thay đổi; nhật ký giữ căn cứ thao tác.</p>
+<h2 id="nhap-json-cua-shop">Nhập JSON của shop</h2>
+<p>Trong <strong>Đối chiếu dữ liệu</strong>, chọn file riêng ở <code>data/</code>. Xem trước số dòng rồi nhấn nhập. File đã chuyển hiện tại chứa 17 nhập hàng/12 thu chi, kể cả dòng tháng 9 mới thêm. Tất cả vào hàng chờ. Nhập lại không sinh trùng; dòng nguồn đổi nội dung có mã cũ sẽ báo cần đối chiếu.</p>
+<p>Muốn chuyển một bản Excel cập nhật, cài Python và <code>pip install -r requirements-export.txt</code>, sau đó chạy:</p>
+<pre><code class="language-powershell">python scripts/export_excel.py --source 'D:\ChiDi Manager\ChiDi_ERP\ChiDi_Online_Business_ERP.xlsx' --output 'data/chidi-import-lan-tiep-theo.json'
+</code></pre>
+<p>Máy bàn giao có Python riêng trong thư mục ERP cũ, có thể dùng đường dẫn <code>.tools/python/python.exe</code> ở đó thay <code>python</code>. Chọn tên output chưa tồn tại. Script đọc file nguồn, không ghi workbook; nếu loại dữ liệu chưa hỗ trợ, dừng để kiểm tra thay vì tự đoán.</p>
+<h2 id="oc-bao-cao">Đọc báo cáo</h2>
+<p>Bộ lọc <strong>Kỳ báo cáo / Đến ngày</strong> áp dụng các số liệu đã ghi của dashboard và báo cáo. Danh sách chứng từ hiển thị toàn bộ kỳ, có bộ lọc trạng thái và tìm kiếm riêng. Giá trị nháp ở dashboard luôn ghi rõ “toàn bộ kỳ”.</p>
+<p>Số dư tài khoản bằng số dư đầu đã xác nhận cộng phát sinh tới ngày chọn. Trước ngày mở sổ hoặc chưa xác nhận thì chưa có số dư đáng dùng. Nhóm chi là phân tích dòng tiền; không phải P&amp;L dồn tích. COD thu về không tự là doanh thu. CSV xuất theo màn hình, đã xử lý ký tự có thể thành công thức bảng tính.</p>
+<h2 id="nhat-ky-va-ban-sao">Nhật ký và bản sao</h2>
+<p>Nhật ký cho biết người/thời điểm/thao tác/chứng từ/lý do đảo hoặc thống kê import. Demo chỉ có một người giả lập owner. Chế độ cloud lưu user ID thật; chưa có tên nhân viên trong audit nếu chưa xây danh mục hồ sơ.</p>
+<p>Thiết lập cho phép xuất JSON bản sao demo để lưu tham khảo và đặt lại demo bằng thao tác xác nhận. V1 chưa có nút phục hồi bản sao demo. Không dùng bản sao này thay backup PostgreSQL; xem <a href="#setup" data-page="setup">hướng dẫn Supabase</a>.</p><p class="sourcefile"><a href="USER_GUIDE.md">Mở bản Markdown gốc</a></p></article><article id="database" data-panel hidden><h1 id="hop-ong-database-v1">Hợp đồng database V1</h1>
+<blockquote>
+<p>Cập nhật V1.1 ngày 11/09/2026: schema nền bên dưới giữ nguyên. Chạy thêm <a href="../supabase/migrations/002_operations.sql">002_operations.sql</a>, không chạy lại 001. V1.1 bổ sung RPC và index, không sửa chứng từ/số dư hiện có. UI đã có bộ chọn workspace và quản lý thành viên.</p>
+</blockquote>
+<h2 id="rpc-bo-sung-v11">RPC bổ sung V1.1</h2>
+<table>
+<thead>
+<tr>
+<th>Hàm</th>
+<th>Tham số</th>
+<th>Quyền và kết quả</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>list_workspace_members</code></td>
+<td><code>p_workspace_id uuid</code></td>
+<td>Owner; trả user_id, role, email_hint đã che một phần, is_self</td>
+</tr>
+<tr>
+<td><code>add_workspace_member</code></td>
+<td><code>p_workspace_id</code>, <code>p_email</code>, <code>p_role</code> mặc định viewer</td>
+<td>Owner; email chính xác đã xác nhận, không gửi thư; không tự đổi role thành viên đã có</td>
+</tr>
+<tr>
+<td><code>set_workspace_member_role</code></td>
+<td><code>p_workspace_id</code>, <code>p_user_id</code>, <code>p_role</code></td>
+<td>Owner; chặn mất owner cuối cùng, audit role cũ/mới</td>
+</tr>
+<tr>
+<td><code>remove_workspace_member</code></td>
+<td><code>p_workspace_id</code>, <code>p_user_id</code></td>
+<td>Owner; chặn tự xóa, chặn mất owner cuối cùng, audit</td>
+</tr>
+<tr>
+<td><code>get_workspace_report</code></td>
+<td><code>p_workspace_id</code>, <code>p_from date</code>, <code>p_to date</code></td>
+<td>Mọi thành viên; cùng snapshot cho overview, cash_accounts, cash_categories, stock_by_sku, warnings</td>
+</tr>
+</tbody>
+</table>
+<p>Các lệnh thành viên khóa workspace và kiểm lại quyền. Helper đặc quyền không cấp execute trực tiếp cho client. Report là hàm STABLE với search_path rỗng; số tiền và tổng số lượng trả chuỗi nguyên chính xác, frontend dùng BigInt để trình bày. Số dư chưa xác nhận/ngày mở sau kỳ trả null, không biến thành 0 đã đối chiếu. Đầu kỳ + số dư mở trong kỳ + phát sinh ròng = cuối kỳ; không lọc mất phát sinh gốc chỉ vì chứng từ đã đảo ở kỳ sau.</p>
+<p>V1.1 chưa thêm quyền riêng theo phân hệ hoặc sổ cái kép. Kết quả 41 kiểm thử PostgreSQL V1.1 xem <a href="#checks" data-page="checks">VERIFICATION</a>.</p>
+<p>Nguồn có thẩm quyền: <a href="../supabase/migrations/001_core.sql">001_core.sql</a>. Chạy một lần trong project Supabase mới. Mọi bảng nghiệp vụ có UUID, workspace và thời điểm tạo; membership dùng khóa ghép. Schema <code>app_private</code> giữ helper và request chống trùng.</p>
+<h2 id="bang-thuc-te">Bảng thực tế</h2>
+<table>
+<thead>
+<tr>
+<th>Bảng <code>public</code></th>
+<th>Nội dung và khóa quan trọng</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>workspaces</code></td>
+<td>id, name, created_by, created_at</td>
+</tr>
+<tr>
+<td><code>workspace_members</code></td>
+<td>workspace_id + user_id duy nhất, role owner/manager/staff/viewer</td>
+</tr>
+<tr>
+<td><code>suppliers</code></td>
+<td>code duy nhất trong workspace, name, note</td>
+</tr>
+<tr>
+<td><code>products</code></td>
+<td>code, name, supplier_id, unit_cost, provisional, note</td>
+</tr>
+<tr>
+<td><code>warehouses</code></td>
+<td>code, name, note</td>
+</tr>
+<tr>
+<td><code>cash_accounts</code></td>
+<td>code, name, opening_balance, opening_date, opening_confirmed</td>
+</tr>
+<tr>
+<td><code>purchase_receipts</code></td>
+<td>Một SKU/dòng: supplier_id, product_id, warehouse_id, received_date, date_estimated, qty, unit_cost, additional_cost, total_amount generated, status</td>
+</tr>
+<tr>
+<td><code>cash_transactions</code></td>
+<td>account_id, direction in/out, transaction_date, date_estimated, category, amount, description, status</td>
+</tr>
+<tr>
+<td><code>stock_movements</code></td>
+<td>purchase_id, product_id, warehouse_id, received_date, movement_kind post/reversal, qty và amount có dấu</td>
+</tr>
+<tr>
+<td><code>cash_movements</code></td>
+<td>cash_id, account_id, transaction_date, movement_kind, direction, amount dương, signed_amount generated, category</td>
+</tr>
+<tr>
+<td><code>audit_events</code></td>
+<td>actor_id, action, entity_id, details JSONB, created_at</td>
+</tr>
+<tr>
+<td><code>import_batches</code></td>
+<td>source_id SHA-256 duy nhất/workspace, source_name, stats JSONB, created_by</td>
+</tr>
+</tbody>
+</table>
+<p>Hai bảng chứng từ có thêm <code>legacy_id</code>, <code>source_id</code>, <code>import_row_hash</code>, <code>provenance</code>, <code>notes</code>, người tạo và thời điểm cập nhật. Legacy ID duy nhất trong từng loại chứng từ/workspace. Khoá ngoại của các tham chiếu nghiệp vụ ghép với workspace ID để chặn tham chiếu chéo.</p>
+<p>Tiền VND dùng bigint; giá trị đầu vào từ 0 hoặc 1 tùy trường, tối đa 9e12. Số dư đầu cho phép âm trong giới hạn; số lượng nhập 1–1.000.000. Ngày thiếu được giữ null ở draft, nhưng post bắt buộc hợp lệ và không ước tính. Số dư đầu mặc định 0 <strong>kèm opening_confirmed=false</strong>, nên không được hiển thị như đã đối chiếu.</p>
+<h2 id="rpc-frontend-ang-goi">RPC frontend đang gọi</h2>
+<table>
+<thead>
+<tr>
+<th>Hàm</th>
+<th>Tham số</th>
+<th>Vai trò</th>
+<th>Kết quả</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bootstrap_workspace</code></td>
+<td><code>p_name text</code></td>
+<td>Người đã đăng nhập</td>
+<td><code>{id}</code>; reuse workspace owner khi gọi lại</td>
+</tr>
+<tr>
+<td><code>save_master</code></td>
+<td><code>p_kind text</code>, <code>p_payload jsonb</code></td>
+<td>owner/manager; tài khoản tiền chỉ owner</td>
+<td>Dòng danh mục</td>
+</tr>
+<tr>
+<td><code>create_purchase</code></td>
+<td><code>p_payload jsonb</code></td>
+<td>owner/manager/staff</td>
+<td>Dòng phiếu nháp; có id thì sửa draft</td>
+</tr>
+<tr>
+<td><code>create_cash</code></td>
+<td><code>p_payload jsonb</code></td>
+<td>owner/manager/staff</td>
+<td>Dòng thu chi nháp; có id thì sửa draft</td>
+</tr>
+<tr>
+<td><code>post_purchase</code></td>
+<td><code>p_id uuid</code>, <code>p_request_id uuid</code></td>
+<td>owner/manager</td>
+<td>Dòng phiếu sau ghi; replay không thêm ledger</td>
+</tr>
+<tr>
+<td><code>post_cash</code></td>
+<td><code>p_id uuid</code>, <code>p_request_id uuid</code></td>
+<td>owner/manager</td>
+<td>Dòng thu chi sau ghi</td>
+</tr>
+<tr>
+<td><code>reverse_document</code></td>
+<td><code>p_kind</code>, <code>p_id</code>, <code>p_request_id</code>, <code>p_date date</code>, <code>p_reason text</code></td>
+<td>owner</td>
+<td>Giữ nguồn, thêm phát sinh ngược</td>
+</tr>
+<tr>
+<td><code>import_legacy</code></td>
+<td><code>p_payload jsonb</code></td>
+<td>owner</td>
+<td>inserted_purchases, inserted_cash, skipped, conflicts, already_imported nếu replay</td>
+</tr>
+</tbody>
+</table>
+<p><code>p_payload</code> cho save/create/import phải chứa <code>workspace_id</code>. Client gửi UUID workspace nhưng server luôn kiểm membership, không tin client. <code>p_kind</code> của master là <code>products</code>, <code>suppliers</code>, <code>warehouses</code>, <code>cash_accounts</code>; của post/reverse là <code>purchase</code> hoặc <code>cash</code>.</p>
+<p>Ví dụ lưu phiếu (UUID dưới đây là placeholder, lấy từ chính workspace):</p>
+<pre><code class="language-javascript">await supabase.rpc('create_purchase', {
+  p_payload: {
+    workspace_id: workspaceId,
+    supplier_id: supplierId,
+    product_id: productId,
+    warehouse_id: warehouseId,
+    received_date: '2026-08-18',
+    date_estimated: false,
+    qty: 3,
+    unit_cost: 85000,
+    additional_cost: 5000,
+    notes: 'Căn cứ phiếu nhận hàng đã đối chiếu'
+  }
+});
+</code></pre>
+<p><code>total_amount</code>, <code>status</code>, <code>created_by</code> do server quyết định; không cho frontend ép posted. Khi sửa draft đã import, giữ dấu vết nguồn. Các RPC không phải nơi upload tệp hoặc tự gửi mail.</p>
+<h2 id="trang-thai-va-bao-ve">Trạng thái và bảo vệ</h2>
+<p><code>draft → posted → reversed</code>. Đảo không trở về draft; lập chứng từ mới để sửa nghiệp vụ. Đã reversed không được post lại. Ledger có unique <code>(workspace_id, source_document_id, movement_kind)</code> nên một gốc và một đảo tối đa trong V1. Chủ shop không sửa trực tiếp sổ bằng REST.</p>
+<p>Post khóa dòng chứng từ trước khi thay đổi. <code>app_private.posting_requests</code> lưu workspace/request/action/entity; reuse một request cho entity/action khác bị từ chối. Idempotency của thao tác tạo nháp mới chưa có request key riêng: sau lỗi mạng, tải danh sách kiểm tra trước khi tạo lại; đây là việc cứng hóa tiếp theo trước vận hành tải cao.</p>
+<p>Các bảng public chỉ được cấp SELECT cho authenticated với RLS. Anonymous không được đọc dữ liệu ERP; RPC không cấp execute cho anon. Helper membership được gọi bởi policy; helper ghi/kiểm tra còn lại không mở cho client gọi riêng. Database admin/service role là lớp đặc quyền hạ tầng, không đại diện cho vai trò owner trong ERP và không dùng ở browser.</p>
+<h2 id="du-lieu-import">Dữ liệu import</h2>
+<pre><code class="language-javascript">{
+  source_id: '64 ký tự hex SHA-256',
+  source_name: 'Tên file nguồn',
+  suppliers: [{ code: 'NCC-01', name: 'Tên NCC' }],
+  products: [{ code: 'SKU-01', name: 'Tên sản phẩm', supplier_code: 'NCC-01', unit_cost: 85000 }],
+  purchases: [{ legacy_id: 'POL-001', supplier_code: 'NCC-01', product_code: 'SKU-01',
+    qty: 3, unit_cost: 85000, additional_cost: 0, received_date: '2026-08-18',
+    date_estimated: true, source_status: 'Có', provenance: { sheet: 'PURCHASE_ORDERS', row: 10 } }],
+  cash: [{ legacy_id: 'CASH-001', direction: 'out', amount: 125000, category: 'packaging',
+    account_code: null, transaction_date: null, date_estimated: false, description: 'Bao bì' }]
+}
+</code></pre>
+<p>Đây là mẫu cấu trúc, không phải file import có hash hợp lệ. Mỗi mảng tối đa 5.000 dòng, UI giới hạn file 10 MB. Product nguồn mới luôn provisional, chứng từ luôn draft. SHA-256 nhận diện file; row fingerprint nhận diện thay đổi nội dung, không phải chữ ký điện tử/bằng chứng chống sửa file. SQL dùng MD5 cho fingerprint nội bộ, không dùng làm cơ chế bảo mật. Bản demo dùng cách so sánh khác nên không chuyển bản backup demo thẳng vào cloud.</p>
+<p>Đổi hash file không bỏ qua unique legacy ID. Changed row được trả conflict và giữ nguyên dữ liệu trước; V1 hiển thị mã/lý do, chưa có màn hình merge giá trị từng ô. Tham chiếu không rõ để null và chặn post. Code nguồn/master nên dùng thống nhất chữ hoa, script cung cấp đã chuẩn hóa.</p>
+<h2 id="cap-thanh-vien-khi-chua-co-ui-moi">Cấp thành viên khi chưa có UI mời</h2>
+<p>Chỉ quản trị project thực hiện trong SQL Editor sau khi người dùng đã đăng ký Auth và đã được chủ shop đồng ý cấp quyền. Lấy đúng user UUID ở Authentication → Users và workspace UUID ở bảng <code>workspaces</code>. Kiểm tra read-only hai dòng này trước; không chọn nhầm project hay email trùng tài khoản cũ.</p>
+<pre><code class="language-sql">-- Thay hai UUID bên dưới bằng giá trị đã kiểm tra; mặc định quyền tối thiểu viewer.
+insert into public.workspace_members (workspace_id, user_id, role)
+values ('UUID_WORKSPACE_DA_KIEM_TRA', 'UUID_USER_DA_KIEM_TRA', 'viewer');
+</code></pre>
+<p>Các placeholder không chạy được cho tới khi thay bằng UUID thật. Đoạn SQL trực tiếp trên chỉ là phương án quản trị V1, không đi qua audit ứng dụng. Trong V1.1, ưu tiên màn hình <strong>Thiết lập → Thành viên và quyền</strong> cùng RPC có audit, và chọn đúng workspace bằng bộ chọn đã bổ sung. Dùng owner/manager/staff chỉ khi phạm vi công việc cần.</p>
+<h2 id="gioi-han-va-kiem-tra">Giới hạn và kiểm tra</h2>
+<p>V1 không có bảng đơn bán, invoice/AP/AR, kế toán kép, kỳ đóng, kho xuất, outbox hay storage bucket. <a href="data-model-v1.mmd">Sơ đồ V1</a> khớp migration; <a href="data-model.mmd">mô hình đích</a> dành cho lộ trình.</p>
+<p><code>npm run test:db</code> và <code>npm run test:operations</code> chạy SQL thực trên PostgreSQL PGlite với auth.users/auth.uid mô phỏng. Kiểm vai trò, RLS, FK, replay, import conflict, ledger đảo, team và report. Trước dùng cloud thật phải kiểm lại Supabase Auth/JWT, REST grants và RPC cùng phiên đăng nhập thực, email và nhiều kết nối. Các danh sách/dashboard vẫn đọc phân trang; trang Báo cáo cloud V1.1 đã aggregate trên server theo một snapshot.</p><p class="sourcefile"><a href="DATABASE_CONTRACT.md">Mở bản Markdown gốc</a></p></article><article id="prompt" data-panel hidden><button class="copy" id="copy-prompt">Sao chép toàn bộ prompt</button><h1 id="prompt-trien-khai-va-phat-trien-chidi-erp">Prompt triển khai và phát triển ChiDi ERP</h1>
+<blockquote>
+<p>Cập nhật đầu vào 11/09/2026: project đang ở V1.1. Đã có bộ chọn workspace, team RPC/UI, report RPC/BigInt, <code>002_operations.sql</code> và kiểm thử mới. URL/key đã được người dùng điền, app cloud chạy localhost:2000. Đọc <a href="../TASKS.md">TASKS</a> và <a href="#history" data-page="history">CHANGELOG</a> trước; không thực hiện lại phần đã làm hoặc chạy lại 001. Xác minh 002 đã được chủ project chạy và Auth thật trước khi coi cloud hoàn tất. Các mục “chưa có” ở mô tả V1 phía dưới là mốc nền, đối chiếu trạng thái mới này để chọn công việc tiếp theo.</p>
+</blockquote>
+<p>Dùng prompt dưới đây để giao cho lập trình viên/coding agent. Đọc cùng kiến trúc và kết quả kiểm thử của project hiện có. Các phần mô tả giai đoạn tương lai là yêu cầu phát triển, không phải tuyên bố đã hoàn thành.</p>
+<hr />
+<p>Bạn là kỹ sư phần mềm phụ trách ERP, hiểu quản trị tồn kho, công nợ, COD và kế toán quản trị. Hãy tiếp tục phát triển một sản phẩm chạy được cho ChiDi Shop, không dừng ở tư vấn hoặc tạo màn hình giả.</p>
+<h2 id="a-boi-canh-va-rang-buoc-khong-uoc-thay-oi">A. Bối cảnh và ràng buộc không được thay đổi</h2>
+<p>Project nằm tại:</p>
+<pre><code class="language-text">D:\ChiDi Manager\ChiDi\_ERP\ChiDi\_Online\_ERP\_Project
+</code></pre>
+<p>ChiDi bán thời trang jeans/shorts, làm livestream, dùng FLive/Zalo trong hành trình đơn, giao hàng qua SPX/GHN/J&amp;T và nhận COD. Khai trương ngày 18/08/2026. Tự xây theo nghiệp vụ ChiDi, ngôn ngữ dễ hiểu, dễ bảo trì. Stack: <strong>JavaScript ES modules, React JSX, Vite, Supabase Auth + PostgreSQL + RLS + RPC</strong>. Không tự chuyển sang TypeScript, Django, MongoDB hoặc dịch vụ trả phí bắt buộc.</p>
+<p>Người dùng cho phép bổ sung tài khoản, Project URL và publishable key sau. Tiếp tục mọi việc có thể làm trên máy: code, schema, test, tài liệu, dữ liệu chuyển đổi. Không liên tục hỏi lại key hoặc mật khẩu. Khi chưa cấu hình cloud, chạy demo có nhãn rõ và dữ liệu riêng; không tự tải file shop lên mạng. Không tự tạo tài khoản/dịch vụ hoặc mua gói cho người dùng.</p>
+<p>Đọc README, kiến trúc, hợp đồng database, hướng dẫn Supabase và verification trước. Kiểm tra trạng thái file hiện tại và giữ mọi chỉnh sửa của người dùng. Không ghi đè source Excel, không khôi phục một file cũ lên bản đang được dùng, không xóa thư mục để scaffold lại. Nếu cần nghiên cứu công nghệ/giá/hạn mức, dùng tài liệu chính thức hiện hành và ghi ngày kiểm tra.</p>
+<h2 id="b-nhung-gi-a-co-va-cach-tiep-tuc">B. Những gì đã có và cách tiếp tục</h2>
+<p>V1 có dashboard, danh mục SKU/NCC/kho/tài khoản, phiếu nhập một SKU, thu chi, import có đối chiếu, sổ nhận hàng/sổ tiền, đảo và nhật ký. Có hai repository demo/cloud, migration SQL, test nghiệp vụ, test quyền bằng PostgreSQL PGlite và E2E. Chạy kiểm tra để biết thực trạng, không coi mô tả này thay cho đọc code.</p>
+<p>Phần chưa triển khai gồm mời thành viên trong UI, báo cáo server nhất quán, đơn hàng/xuất/hoàn, FIFO bán, COD tự động, hóa đơn/AP/AR, sổ cái kép, khóa kỳ, backup tự động và tích hợp đối tác. Không tạo các menu chỉ có số minh họa rồi báo hoàn thành.</p>
+<p>Ưu tiên một phần việc xuyên suốt: schema → quy tắc → RPC/API → UI → test → tài liệu. Nếu chưa được chỉ định module mới, ưu tiên cứng hóa cloud và vận hành nhóm trước, sau đó đơn hàng/kho, COD/công nợ, kế toán rồi các phần mở rộng. Giữ ứng dụng chạy được sau mỗi lần giao.</p>
+<h2 id="c-tieu-chuan-nghiep-vu-va-du-lieu">C. Tiêu chuẩn nghiệp vụ và dữ liệu</h2>
+<ol>
+<li>Mọi chứng từ có ID ổn định, workspace, ngày nghiệp vụ, thời điểm tạo/sửa, người thực hiện, trạng thái và căn cứ. Ngày nghiệp vụ dùng <code>date</code>; timestamp lưu timezone-aware; giao diện dùng Asia/Ho_Chi_Minh.</li>
+<li>Tách nguồn nhập, chứng từ nháp và sổ phát sinh. <code>source_status</code> không tự trở thành trạng thái được phép ghi. Ngày ước tính không ghi sổ; không có số dư không biến thành số 0 đã xác nhận.</li>
+<li>Số tiền VND là số nguyên chính xác. Không nhận giá trị bị cắt/làm tròn âm thầm; kiểm tràn cả dòng và tổng. Nếu thêm decimal/ngoại tệ phải có migration numeric, chuỗi decimal qua API và quy tắc làm tròn đã quyết định.</li>
+<li>Số lượng V1 theo sản phẩm nguyên. SKU thật phân biệt mẫu/màu/size; SKU tạm không được tự coi là mã đã xác nhận. Thay giá tham khảo không đổi giá trên phiếu đã ghi.</li>
+<li>Tất cả FK nghiệp vụ phải bảo vệ workspace, dùng composite FK hoặc cách có bằng chứng tương đương. Không chỉ tin workspace ID do trình duyệt gửi.</li>
+<li>Chứng từ nháp sửa được theo quyền. Chứng từ đã ghi không sửa/xóa trực tiếp số kinh tế; sai thì đảo/điều chỉnh có tham chiếu và lý do. Ngày đảo không trước ngày gốc hoặc vào kỳ đã khóa.</li>
+<li>Nhập kho, hóa đơn mua, trả tiền nhà cung cấp là ba nghiệp vụ riêng. Nhận COD, doanh thu và phí vận chuyển là ba số riêng. Góp vốn/rút vốn không tự là doanh thu/chi phí.</li>
+<li>Nguồn thật chưa đủ để tính doanh thu/lợi nhuận phải hiển thị “chưa đủ dữ liệu”, ghi rõ phần chưa đủ. Không lấp bằng dữ liệu demo hoặc giả định 0.</li>
+</ol>
+<h2 id="d-database-va-quyen">D. Database và quyền</h2>
+<p>Giữ một database PostgreSQL chia phân hệ. Dùng SQL migration theo thứ tự, thử migration lên database sạch và bản đã có dữ liệu; không chạy migration phá dữ liệu để chữa lỗi môi trường. Hướng dẫn rollback thực tế: backup trước, migration bổ sung/restore đã thử; không hứa rollback bằng <code>DROP TABLE</code>.</p>
+<p>Đọc dữ liệu qua API có RLS; ghi dữ liệu kinh tế qua RPC có transaction. Với SECURITY DEFINER: kiểm auth.uid, kiểm role và workspace mỗi lệnh; search_path an toàn; tên bảng đầy đủ; revoke PUBLIC/anon; grant execute đúng người dùng. Helper private không được mở quyền rộng cho khách gọi trực tiếp.</p>
+<p>Role nền: owner, manager, staff, viewer. Nhân viên chỉ lập nháp; manager/owner duyệt ghi; owner quản lý số dư đầu, nhập nguồn và đảo. Khi thêm HR/kế toán, bổ sung quyền theo module và tách dữ liệu nhạy cảm. Không dùng việc ẩn nút để chứng minh bảo mật. Kiểm thử API bằng người không có quyền, người cùng project nhưng khác workspace, người đã bị thu hồi quyền và người chưa đăng nhập.</p>
+<p>Quản lý thành viên cần owner thao tác, đối chiếu danh tính, audit thay đổi quyền, không tự nâng quyền từ metadata do user sửa. Không cho chủ cuối cùng của workspace tự bị xóa khỏi vai trò owner. Không nhầm Supabase organization team với ERP workspace membership. Nếu triển khai lời mời qua email, secret chỉ nằm server và chỉ gửi sau thao tác được người dùng yêu cầu.</p>
+<p>Khi nhiều người cùng thao tác, khóa tài nguyên cần cập nhật, lấy khóa theo thứ tự ổn định, constraint bảo vệ sau cùng. <code>request_id</code> ổn định cho một lần người dùng gửi và retry; cùng request ID khác payload/action phải bị chặn. Các lệnh tạo mới có thể tạo trùng nếu mạng timeout sau commit: bổ sung khóa idempotency cho save/create khi cứng hóa, không chỉ khóa post.</p>
+<p>V1 post idempotent theo trạng thái chứng từ và unique ledger. Không coi test replay tuần tự trên PGlite là chứng minh concurrency. Viết test với nhiều kết nối PostgreSQL thực khi thêm giữ tồn, nhiều dòng phiếu hoặc tài nguyên dùng chung.</p>
+<h2 id="e-phan-he-phai-phat-trien">E. Phân hệ phải phát triển</h2>
+<h3 id="e1-quan-tri-va-danh-muc">E1. Quản trị và danh mục</h3>
+<p>Workspace, thành viên, quyền theo module; sản phẩm/style/variant, đơn vị, SKU/barcode, NCC, khách, kho/vị trí, tài khoản tiền, kênh bán, đơn vị giao hàng, phân loại thu chi. Có tìm kiếm, bộ lọc, phân trang, xuất CSV an toàn và audit. Không xóa cứng danh mục đang được chứng từ tham chiếu; thiết kế ngừng dùng rõ ràng.</p>
+<h3 id="e2-nhap-hang-va-kho">E2. Nhập hàng và kho</h3>
+<p>PO header/lines, nhận từng phần, phiếu nhiều dòng, phí nhập phân bổ, hàng chờ kiểm, chuyển kho, kiểm kê, điều chỉnh có duyệt, tồn thực/tồn giữ/tồn khả dụng/đang đi, lô giá vốn. Ghi sổ cả phiếu trong một transaction, lỗi một dòng rollback toàn phiếu. Không tính bản nháp vào tồn. Quy tắc âm tồn cấu hình và chặn ở server.</p>
+<h3 id="e3-ban-hang-va-giao-nhan">E3. Bán hàng và giao nhận</h3>
+<p>Khách, đơn/chi tiết, chiết khấu dòng/đơn, giữ tồn, hủy nhả tồn, đóng gói, bàn giao, giao một phần, hoàn một phần, đổi hàng và hoàn tiền. Trạng thái thanh toán độc lập giao nhận. Giữ một order ID nội bộ và unique external IDs theo nguồn/workspace. Không nhập một đơn từ hai kênh thành hai doanh thu.</p>
+<h3 id="e4-cod-va-oi-soat">E4. COD và đối soát</h3>
+<p>Nhập CSV đối soát theo mapping cấu hình, giữ file/hash/dòng nguồn, xem trước, xác minh vận đơn, tổng COD, phí, thuế/phụ phí theo chứng từ, tiền ngân hàng, thiếu/thừa. Có khớp từng phần, nhiều đợt thanh toán cho một đơn nếu nghiệp vụ cho phép, ghi rõ unresolved. COD về ngân hàng chỉ thu hồi khoản phải thu; không thêm doanh thu. Tiền mua hàng cũng phải phân bổ vào hóa đơn/khoản ứng, không tính chi phí trùng.</p>
+<h3 id="e5-ke-toan-quan-tri">E5. Kế toán quản trị</h3>
+<p>Hóa đơn NCC, hàng nhận chưa hóa đơn, AP/AR, ứng trước, phân bổ thanh toán, danh mục tài khoản, journal header/lines, số dư đầu, kỳ kế toán, khóa kỳ, mở kỳ có lý do. Ghi sổ Nợ/Có phải cân trong transaction; đối chiếu stock/cash/AP/AR với GL. P&amp;L theo dồn tích cần doanh thu/giá vốn/phí đúng kỳ; bảng cân đối và lưu chuyển tiền có định nghĩa rõ. Không tự hardcode thuế, hệ thống tài khoản pháp định hoặc tuyên bố tuân thủ khi chưa được kiểm chứng.</p>
+<h3 id="e6-cac-phan-he-sau">E6. Các phân hệ sau</h3>
+<p>CRM/livestream theo phiên, hiệu quả marketing, chính sách khuyến mãi, lương/phải trả nhân viên, tài sản/khấu hao và phân bổ chi phí trả trước. Cấu hình quy tắc và ngày hiệu lực; lịch sử báo cáo không đổi khi sửa tham số tương lai. Trước mỗi phần, xác định nguồn dữ liệu và ai được xem. Chưa có dữ liệu thì để trạng thái chờ tích hợp rõ ràng.</p>
+<h2 id="f-tich-hop-va-van-hanh">F. Tích hợp và vận hành</h2>
+<p>Chỉ triển khai API từ tài liệu chính thức/tài khoản được cấp. Bí mật để trong Supabase Edge Function hoặc backend JavaScript, không trong React hoặc <code>VITE_*</code>. Webhook kiểm chữ ký, thời gian, event ID, chống replay, xử lý sự kiện lặp/sai thứ tự và ghi audit. Outbox lưu cùng giao dịch nghiệp vụ, worker retry sau commit, có dead-letter/nhật ký lỗi để xử lý. Không tuyên bố exactly-once delivery qua mạng.</p>
+<p>Báo cáo phải aggregate trên server theo một snapshot nhất quán khi triển khai đa người/dữ liệu lớn; không tải mọi bảng về trình duyệt vô hạn. Index theo workspace, ngày và khóa tra cứu. Xác định mục tiêu tải bằng dữ liệu đo được, không tự ghi SLA chưa thử. Không dùng Realtime thay cho giao dịch hoặc làm nguồn chứng cứ đã commit.</p>
+<p>Free database không đồng nghĩa free mọi thứ. Ghi hạn mức và phương án nâng cấp/di chuyển; không tự mua gói. Tệp riêng tư, URL có thời hạn, kiểm loại/dung lượng, backup metadata và object riêng. Lập lịch backup ngoài hệ thống, bảo vệ/mã hóa theo môi trường, thử restore và ghi kết quả. RPO/RTO phải phù hợp cơ chế đã chạy; không cam kết 15 phút khi chỉ có dump hằng ngày.</p>
+<h2 id="g-chuyen-du-lieu-excel-hien-co">G. Chuyển dữ liệu Excel hiện có</h2>
+<p>Nguồn chính nằm trong <code>D:\ChiDi Manager\ChiDi_ERP\ChiDi_Online_Business_ERP.xlsx</code>. Kiểm tra lại file hiện tại trước khi chuyển; số snapshot ngày 10/09/2026 là 17 dòng nhập, 1.566 sản phẩm, 79.043.000 đ và 12 thu chi. Bản cũ 15 dòng không được ghi đè lên dữ liệu 17 dòng. Đơn bán trong snapshot là 0; không tự tạo doanh thu cho khớp COD.</p>
+<p>Ngày khai trương được xác nhận, hai đợt đầu trước tháng 8 được xác nhận; ngày random theo tuần chỉ là ước tính. Các tài khoản chưa biết vẫn null/chờ đối chiếu. Những dòng nguồn đã đánh dấu ghi không tự được cấp trạng thái posted khi nhập sang ERP.</p>
+<p>Dùng script read-only xuất JSON mới, SHA-256 file, legacy ID ổn định, nguồn sheet/dòng, giá trị và ghi chú gốc. Nhập lại file không trùng; file đổi hash nhưng cùng legacy ID không sinh bản mới. Nếu cùng ID có nội dung thay đổi, trả conflict có chi tiết, giữ dữ liệu hiện có. Không đổi ID nguồn để né kiểm tra. Thư mục dữ liệu thật gitignored và không nhập vào frontend bundle.</p>
+<p>Chuyển số dư đầu kho/tiền/công nợ là bước riêng, cần thời điểm cutover và đối chiếu. Không vừa chuyển toàn bộ lịch sử vừa cộng số dư đầu cùng giai đoạn để làm tăng kép.</p>
+<h2 id="h-giao-dien-va-kha-nang-su-dung">H. Giao diện và khả năng sử dụng</h2>
+<p>Tiếng Việt dễ hiểu, font phổ biến, màu xanh trầm/kem, bố cục rõ, dùng được ở 390 px và desktop. Số tiền căn phải, có đơn vị và dấu nghìn; ngày hiển thị theo địa phương và ghi chú ngày ước tính. Form có label, trạng thái loading/empty/error/success, chống double submit, giữ nhập liệu khi lỗi, thông báo nguyên nhân cụ thể.</p>
+<p>Lưu nháp và ghi sổ là hai thao tác riêng. Ghi sổ hiển thị chứng từ/số tiền và xác nhận; đảo yêu cầu lý do. Modal dùng keyboard/focus trap/Escape; nút icon có nhãn. Không bật dialog hỏi xác nhận cho mọi thay đổi nhỏ. Bộ lọc báo cáo phải ghi rõ kỳ và phạm vi; số dư tại ngày chọn không dùng ngày hôm nay ngầm.</p>
+<p>Demo luôn có nhãn, dùng số giả có ghi chú; cloud lỗi không tự thay bằng demo. Không gọi các nhóm thanh toán là lợi nhuận hoặc công nợ phải trả khi chưa có nghiệp vụ đối ứng. Không đưa thông tin xây dựng app, secret, tên bảng kỹ thuật vào luồng của nhân viên trừ phần thiết lập quản trị cần thiết.</p>
+<h2 id="i-tieu-chi-nghiem-thu-bat-buoc">I. Tiêu chí nghiệm thu bắt buộc</h2>
+<table>
+<thead>
+<tr>
+<th>Tình huống</th>
+<th>Kết quả mong đợi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nhập 3 × 85.000 + 5.000</td>
+<td>Tổng 260.000 chính xác, draft chưa tăng kho</td>
+</tr>
+<tr>
+<td>Ngày 30/02 hoặc tiền 1,5 VND</td>
+<td>Bị từ chối rõ ràng, không làm tròn âm thầm</td>
+</tr>
+<tr>
+<td>SKU tạm/ngày ước tính/tài khoản chưa rõ</td>
+<td>Không ghi sổ; nháp vẫn giữ để đối chiếu</td>
+</tr>
+<tr>
+<td>Replay post, mất response sau commit</td>
+<td>Một hiệu ứng ledger, audit có thể truy nguồn</td>
+</tr>
+<tr>
+<td>Hai người bán sản phẩm cuối cùng</td>
+<td>Không cấp tồn vượt chính sách; thử bằng hai kết nối thật</td>
+</tr>
+<tr>
+<td>Đảo ngày sau ngày gốc</td>
+<td>Trước ngày đảo thấy gốc, sau ngày đảo thấy ròng; không xóa nguồn</td>
+</tr>
+<tr>
+<td>Workspace B biết UUID A</td>
+<td>Không đọc, sửa hoặc tham chiếu FK trái workspace</td>
+</tr>
+<tr>
+<td>Staff/viewer gọi RPC trực tiếp</td>
+<td>Bị chặn theo quyền dù bypass giao diện</td>
+</tr>
+<tr>
+<td>Import lại/cùng ID khác file hash</td>
+<td>Không trùng; thay đổi nội dung báo conflict và không ghi đè</td>
+</tr>
+<tr>
+<td>Hai bảng Excel cùng khoản trả tiền</td>
+<td>Nhận diện một sự kiện, không cộng kép chi phí/kho</td>
+</tr>
+<tr>
+<td>FIFO lô 5 × 80k + 5 × 90k, bán 7</td>
+<td>Giá vốn 580k, còn 270k; truy nguyên lô</td>
+</tr>
+<tr>
+<td>Bán 300k, COD chuyển 275k, phí25k</td>
+<td>Doanh thu theo chính sách 300k một lần, xóa phải thu 300k</td>
+</tr>
+<tr>
+<td>Góp vốn/rút vốn/trả công nợ</td>
+<td>Tiền đổi đúng, không tự đổi doanh thu/lợi nhuận</td>
+</tr>
+<tr>
+<td>Sổ kế toán kép</td>
+<td>Nợ = Có từng journal và đối chiếu subledger, chặn journal lệch</td>
+</tr>
+<tr>
+<td>Kỳ đã đóng</td>
+<td>Không ghi lùi/sửa vào kỳ, mở lại có quyền và audit</td>
+</tr>
+<tr>
+<td>Report &gt;1.000 dòng</td>
+<td>Không bị cắt bởi mặc định API; paging/snapshot được kiểm tra</td>
+</tr>
+<tr>
+<td>Backup restore</td>
+<td>Khôi phục thử thành công, kiểm ID/quyền/tổng, ghi thời gian đo</td>
+</tr>
+</tbody>
+</table>
+<p>Chỉ áp dụng test cho nghiệp vụ đã triển khai trong giai đoạn; những tiêu chí chưa triển khai ghi rõ backlog. Không đổi tên/bỏ test sai để báo xanh. Không viết hàng loạt test chỉ lặp lại tên hàm; ưu tiên bất biến tài chính, quyền, lỗi và giao dịch thất bại không để nửa dữ liệu.</p>
+<h2 id="j-cach-lam-viec-va-au-ra">J. Cách làm việc và đầu ra</h2>
+<p>Đầu lượt, đọc repo và chạy kiểm tra liên quan. Phân chia việc độc lập nếu tiết kiệm thời gian, giữ quyền sở hữu file rõ. Sửa lỗi, viết migration bổ sung, chạy test phù hợp, build và thử trình duyệt. Khi thiếu thông tin không ngăn công việc độc lập, tiếp tục và đánh dấu giả định; chỉ hỏi vấn đề thực sự cần quyết định. Không dừng ở “tôi có thể làm”.</p>
+<p>Mỗi lần bàn giao phải có: code chạy được, migration/contract khớp frontend, test phù hợp, hướng dẫn thao tác, cập nhật kiến trúc và README, kết quả kiểm tra có bằng chứng, phần còn chờ và bước tiếp theo cụ thể. Không tự xuất bản hoặc gửi dữ liệu ra ngoài khi chưa nằm trong phạm vi người dùng yêu cầu.</p>
+<p>Báo cáo bằng tiếng Việt, nêu kết quả trước, giải thích vừa đủ. Liệt kê rõ test trên local, test PostgreSQL engine, test trình duyệt và test cloud thật; không lấy kết quả một loại để khẳng định loại khác. Giữ sản phẩm và tài liệu ở đúng thư mục project người dùng đã chỉ định.</p>
+<hr />
+<p>Tài liệu đi kèm để người thực hiện bắt đầu: <a href="../README.md">README</a>, <a href="#architecture" data-page="architecture">kiến trúc</a>, <a href="#database" data-page="database">database</a>, <a href="#setup" data-page="setup">Supabase</a>, <a href="#checks" data-page="checks">kiểm tra</a>.</p><p class="sourcefile"><a href="PROMPT_XAY_DUNG_ERP_CHIDI.md">Mở bản Markdown gốc</a></p></article><article id="checks" data-panel hidden><h1 id="ket-qua-kiem-tra-chidi-erp-v11">Kết quả kiểm tra ChiDi ERP V1.1</h1>
+<p>Mốc cập nhật: <strong>11/09/2026</strong>, project React/JavaScript tại thư mục người dùng chỉ định. <strong>97 kiểm tra tự động trong các bộ dưới đây đạt</strong>, gồm quy tắc, SQL, trình duyệt, script Excel và build; không dùng số test của workbook cũ để đại diện cho website. Kết nối cloud thật mới kiểm tra chỉ đọc, chưa nghiệm thu bằng tài khoản đăng nhập.</p>
+<table>
+<thead>
+<tr>
+<th>Nhóm kiểm tra</th>
+<th>Kết quả</th>
+<th>Bằng chứng có thể chạy lại</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Quy tắc tiền/ngày, import, post/đảo, bảo toàn dữ liệu demo</td>
+<td>10/10 đạt</td>
+<td><code>npm test</code>, <code>src/lib/domain.test.js</code></td>
+</tr>
+<tr>
+<td>Migration, RLS, quyền, workspace FK, ledger, import</td>
+<td>25/25 đạt</td>
+<td><code>npm run test:db</code>, <code>scripts/test-database.mjs</code></td>
+</tr>
+<tr>
+<td>Hành trình trình duyệt Edge</td>
+<td>5/5 đạt</td>
+<td><code>npm run test:e2e</code>, <code>tests/e2e/workflows.spec.js</code></td>
+</tr>
+<tr>
+<td>Quyền nhóm và báo cáo PostgreSQL V1.1</td>
+<td>41/41 đạt</td>
+<td><code>npm run test:operations</code></td>
+</tr>
+<tr>
+<td>UI cloud qua API mô phỏng, không gửi tới cloud thật</td>
+<td>6/6 đạt</td>
+<td><code>npm run test:cloud-ui</code></td>
+</tr>
+<tr>
+<td>Bảo toàn input Excel / dòng thiếu mã / công thức / ngày ước tính</td>
+<td>5/5 đạt</td>
+<td><code>python scripts/test-export.py</code></td>
+</tr>
+<tr>
+<td>Build demo/cloud, chặn secret/service-role và khôi phục build cấu hình thật</td>
+<td>5/5 đạt</td>
+<td><code>npm run test:builds</code></td>
+</tr>
+<tr>
+<td>Dependency audit</td>
+<td>Không có lỗ hổng được npm audit báo ở lần kiểm tra</td>
+<td><code>npm audit</code> và lockfile</td>
+</tr>
+<tr>
+<td>Chuyển đổi Excel đọc-only</td>
+<td>Số dòng/tổng và SHA-256 khớp snapshot</td>
+<td><code>scripts/export_excel.py</code>, JSON riêng trong <code>data/</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="nhung-hanh-vi-a-kiem-chung">Những hành vi đã kiểm chứng</h2>
+<ul>
+<li>Ngày lịch không tồn tại, số tiền lẻ VND, số không an toàn và tổng vượt giới hạn bị chặn.</li>
+<li>Nháp chưa tạo ledger. Ngày ước tính, SKU tạm, tài khoản chưa xác nhận số dư đầu không được ghi sổ.</li>
+<li>Gửi lại thao tác post tạo đúng một phát sinh. Chứng từ đã ghi không sửa số lượng/giá trực tiếp.</li>
+<li>Đảo giữ gốc, thêm phát sinh ngược; số ròng kho/tiền/nhóm chi đúng và kỳ trước ngày đảo giữ số cũ.</li>
+<li>Authenticated không ghi trực tiếp ledger/draft qua REST SQL grants; staff không ghi sổ hoặc chỉnh số dư đầu; anonymous không gọi RPC; workspace khác không đọc/sửa/tham chiếu chéo.</li>
+<li>Import giữ cờ nguồn ở provenance và luôn tạo nháp; nhập lại không trùng, đổi hash file không nhân bản legacy ID, đổi giá trị cũ được báo xung đột.</li>
+<li>Giao diện tạo NCC/SKU/phiếu, thu chi, xác nhận số dư, post, đảo và import hoạt động qua thao tác thực; 9 mục điều hướng mở được; modal đóng bằng Escape; mobile không tràn chiều ngang trang.</li>
+<li>Source workbook không bị ghi lại; dữ liệu shop nằm ở <code>data/</code>, không nhập vào bundle frontend.</li>
+</ul>
+<p>PGlite chạy PostgreSQL engine với <code>auth.users</code>/<code>auth.uid</code> và role được tạo cho test. Đây không phải Supabase online và không có nhiều kết nối cạnh tranh. E2E demo chạy cổng 5199; test UI cloud chạy cổng 5201 với toàn bộ Auth/REST/RPC bị chặn và trả fixture. Những test này đã kiểm đăng nhập mô phỏng, đổi workspace khi tải muộn, đăng xuất khi đang refresh, quyền viewer, báo lỗi thiếu 002, team form và số lớn. Không dùng chúng để khẳng định Auth/REST cloud thật đã nghiệm thu.</p>
+<p>V1.1 còn kiểm owner cuối cùng, tự thu hồi quyền, email xác nhận/chính xác, audit, quyền chéo workspace, ngày mở sổ giữa kỳ, ngày đảo, hai biên ngày, trên 1.000 dòng và số lớn hơn giới hạn Number. Migration 002 có thể chạy lại mà giữ nguyên chứng từ/membership/ledger trong test.</p>
+<p>Kiểm tra cloud thật chỉ đọc: URL/key publishable hợp lệ, app đã ở cloud mode; Auth phản hồi 200, email signup bật và cần xác nhận; ba bảng nền trả 42501 với anonymous. RPC báo cáo V1.1 hiện chưa được tìm thấy, nên migration 002 còn chờ chạy trong SQL Editor. Không ghi chứng từ, không tạo người dùng và không gửi email trong kiểm tra này.</p>
+<h2 id="snapshot-du-lieu-thuc">Snapshot dữ liệu thực</h2>
+<p>Nguồn <code>D:\ChiDi Manager\ChiDi_ERP\ChiDi_Online_Business_ERP.xlsx</code> có SHA-256:</p>
+<pre><code class="language-text">b85f3d515d392c38ca0a451717cd8eb2dd35f47a2e0cb0219b6fbe1cbe6785a4
+</code></pre>
+<p>JSON mới nhất <code>data/chidi-import-2026-09-11-validated.json</code>: 3 NCC, 17 SKU, 17 dòng nhập; 1.566 đơn vị, 79.043.000 đ tiền hàng; 12 thu chi. Chuyển lại bằng script đã bổ sung chặn công thức/dòng thiếu mã cho cùng số liệu và SHA-256 với snapshot 10/09. Chỉ cần chọn file mới nhất, không nhập nhiều bản cùng nguồn.</p>
+<p>Đây là tổng dữ liệu nguồn, chưa xác nhận hàng đã nhận thật, còn tồn, đã thanh toán, công nợ hoặc chi phí kỳ. Giữ nháp cho tới khi đối chiếu. Dữ liệu tháng 9 không bị đưa ngược vào lịch ước tính tháng 8.</p>
+<h2 id="phan-con-cho-truoc-dung-online-lam-du-lieu-chinh">Phần còn chờ trước dùng online làm dữ liệu chính</h2>
+<ol>
+<li>Project/URL/publishable key đã có; chủ project chạy thêm migration 002, không chạy lại 001.</li>
+<li>Kiểm Auth email/redirect/reset, tạo workspace, gọi API/RPC bằng phiên thật.</li>
+<li>Kiểm hai tài khoản, role và hai workspace trên cloud; thêm membership có kiểm soát nếu dùng nhóm.</li>
+<li>Kiểm nhiều kết nối đồng thời, số liệu sau refresh và báo cáo; chuyển aggregate server khi cần nhất quán đa người.</li>
+<li>Thiết lập backup thật và khôi phục thử; hoàn thiện số dư đầu, SKU, ngày và chứng từ nguồn.</li>
+</ol>
+<p>Hiện chưa triển khai public hosting, chưa liên kết hãng vận chuyển, chưa có kế toán kép/khóa kỳ/bán-xuất-hoàn/FIFO bán. Các phần này được mô tả thành lộ trình và tiêu chí trong kiến trúc/prompt. Không tuyên bố V1.1 đã là toàn bộ ERP doanh nghiệp hoặc báo cáo kế toán được kiểm toán. Bundle cloud hiện khoảng 530 kB trước gzip; Vite có cảnh báo kích thước, build vẫn thành công. Tách tải theo phân hệ là bước tối ưu tiếp theo, không nới ngưỡng cảnh báo để che kết quả.</p>
+<h2 id="cach-tu-kiem-tra">Cách tự kiểm tra</h2>
+<p>Kiểm tra bàn giao bổ sung: 13 file bắt buộc và 53 liên kết tài liệu local hợp lệ; bundle không chứa hash/mã giao dịch nguồn hoặc cấu hình cloud placeholder. Trình duyệt mới mở được màn hình đăng nhập tại <code>http://localhost:2000</code>; trang HTML độc lập chuyển mục và sao chép prompt được, không có page error. Những bước này không thực hiện đăng nhập thật hoặc ghi dữ liệu cloud.</p>
+<pre><code class="language-powershell">npm run check
+npm run test:e2e
+node scripts/verify-builds.mjs
+npm run test:cloud-ui
+python scripts/test-export.py
+npm run check:cloud
+npm audit
+</code></pre>
+<p>Sau E2E, ảnh minh họa desktop/mobile nằm trong <code>test-results/screenshots/</code>. Chúng chỉ có dữ liệu giả dùng cho hướng dẫn. Các lần chạy có thể tạo lại thư mục test-results; tài liệu này giữ kết luận và phạm vi kiểm tra, không hứa thư mục tạm tồn tại mãi.</p>
+<p>Để dựng lại trang tài liệu: cài <code>requirements-docs.txt</code>, chạy <code>python scripts/build_docs.py</code>. HTML/SVG hoạt động trực tiếp trên máy, không dùng CDN và không nhúng JSON dữ liệu shop.</p><p class="sourcefile"><a href="VERIFICATION.md">Mở bản Markdown gốc</a></p></article><article id="sources" data-panel hidden><h1 id="nguon-nghien-cuu-cho-chidi-online-erp">Nguồn nghiên cứu cho ChiDi Online ERP</h1>
+<p>Ngày kiểm tra: <strong>10/09/2026</strong>. Chỉ dùng nguồn chính thức của sản phẩm hoặc tổ chức ban hành. Các dòng “Áp dụng cho ChiDi” là nhận định thiết kế của dự án, không phải tuyên bố của nhà cung cấp. Giá và hạn mức cần kiểm tra lại trước khi triển khai thực tế.</p>
+<table>
+<thead>
+<tr>
+<th>Chủ đề</th>
+<th>Nguồn chính thức</th>
+<th>Điều đã kiểm tra</th>
+<th>Áp dụng cho ChiDi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>React</td>
+<td><a href="https://react.dev/learn/build-a-react-app-from-scratch">Build a React app from scratch</a></td>
+<td>Có hướng xây SPA bằng công cụ như Vite; routing và lấy dữ liệu cần được thiết kế thêm</td>
+<td>ERP nội bộ dùng React JavaScript/JSX; tổ chức riêng giao diện, nghiệp vụ và truy cập dữ liệu</td>
+</tr>
+<tr>
+<td>Vite</td>
+<td><a href="https://vite.dev/guide/">Getting started</a></td>
+<td>Có mẫu React và quy trình phát triển/build</td>
+<td>Dùng công cụ build gọn; giữ package lock và khai báo Node tương thích</td>
+</tr>
+<tr>
+<td>React + Supabase</td>
+<td><a href="https://supabase.com/docs/guides/getting-started/quickstarts/reactjs">React quickstart</a></td>
+<td>Có SDK JavaScript kết nối React với Supabase</td>
+<td>Dùng SDK chính thức, không tự viết cơ chế đăng nhập</td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td><a href="https://www.postgresql.org/about/licence/">License</a></td>
+<td>Giấy phép PostgreSQL cho phép sử dụng, sửa đổi và phân phối theo điều khoản của giấy phép</td>
+<td>Chọn nền dữ liệu quan hệ có thể chuyển sang nơi lưu trữ khác</td>
+</tr>
+<tr>
+<td>Giá Supabase</td>
+<td><a href="https://supabase.com/pricing">Pricing</a></td>
+<td>Free: 500 MB database, 1 GB Storage, tối đa 2 project hoạt động; pause sau 1 tuần không hoạt động; không bao gồm automatic backups</td>
+<td>Phù hợp khởi đầu và thử nghiệm; cần kế hoạch dung lượng, sao lưu và ngân sách vận hành</td>
+</tr>
+<tr>
+<td>Sao lưu</td>
+<td><a href="https://supabase.com/docs/guides/platform/backups">Database backups</a></td>
+<td>Free được khuyến nghị tự xuất dữ liệu; backup database không chứa nội dung tệp Storage</td>
+<td>Sao lưu cơ sở dữ liệu và tệp đính kèm riêng; phải thử khôi phục</td>
+</tr>
+<tr>
+<td>Phân quyền</td>
+<td><a href="https://supabase.com/docs/guides/database/postgres/row-level-security">Row Level Security</a></td>
+<td>RLS kiểm soát quyền theo dòng; view và khóa đặc quyền cần được xử lý cẩn thận</td>
+<td>RLS theo workspace và vai trò; kiểm thử truy cập trái quyền qua API</td>
+</tr>
+<tr>
+<td>Nghiệp vụ máy chủ</td>
+<td><a href="https://supabase.com/docs/guides/database/functions">Database functions</a></td>
+<td>Hàm database có thể gọi từ xa; cần giới hạn quyền execute và search_path khi dùng security definer</td>
+<td>RPC ghi sổ là nơi kiểm tra và cập nhật nhiều bảng trong cùng giao dịch</td>
+</tr>
+<tr>
+<td>An toàn ứng dụng</td>
+<td><a href="https://owasp.org/www-project-application-security-verification-standard/">OWASP ASVS</a></td>
+<td>Khung yêu cầu kiểm chứng an toàn ứng dụng</td>
+<td>Chọn yêu cầu phù hợp cho xác thực, quyền, đầu vào, nhật ký và quản lý bí mật; không tự nhận chứng nhận</td>
+</tr>
+<tr>
+<td>Tích hợp tin cậy</td>
+<td><a href="https://docs.aws.amazon.com/en_en/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html">AWS transactional outbox</a></td>
+<td>Mẫu xử lý tính nhất quán giữa giao dịch database và việc gửi sự kiện</td>
+<td>Dành cho giai đoạn tích hợp sàn/vận chuyển; sự kiện được ghi cùng giao dịch, gửi sau và chống trùng</td>
+</tr>
+<tr>
+<td>ERP mã nguồn mở</td>
+<td><a href="https://frappe.io/erpnext/pricing">ERPNext pricing</a></td>
+<td>Phần mềm mã nguồn mở; hosting và triển khai là khoản công việc/chi phí riêng</td>
+<td>Tham khảo cách chia phân hệ; quyết định hiện tại vẫn là tự xây theo nghiệp vụ ChiDi</td>
+</tr>
+<tr>
+<td>Bộ ứng dụng ERP</td>
+<td><a href="https://www.odoo.com/page/editions">Odoo editions</a></td>
+<td>Trang chính thức phân biệt Community mã nguồn mở và Enterprise có giấy phép; truy cập trực tiếp có lúc timeout, xác nhận được bằng kết quả chỉ mục chính thức</td>
+<td>Tham khảo cách phân chia ứng dụng; không suy diễn tính năng miễn phí của từng module</td>
+</tr>
+<tr>
+<td>Bán hàng đa kênh</td>
+<td><a href="https://www.haravan.com/omnichannel">Haravan Omnichannel</a></td>
+<td>Trang sản phẩm giới thiệu đơn hàng, kho, thanh toán, vận chuyển, khách hàng và nhiều kênh bán</td>
+<td>Lấy hành trình đơn hàng và thu tiền làm luồng xuyên suốt</td>
+</tr>
+<tr>
+<td>Quản lý đa kênh</td>
+<td><a href="https://www.sapo.vn/omnichannel.html">Sapo Omnichannel</a></td>
+<td>Trang sản phẩm giới thiệu hợp nhất đơn, kho, khách hàng, báo cáo và quyền vận hành</td>
+<td>Thiết kế một mã đơn nội bộ và bảng ánh xạ mã bên ngoài</td>
+</tr>
+<tr>
+<td>Bán lẻ thời trang</td>
+<td><a href="https://www.kiotviet.vn/phan-mem-ban-hang-thoi-trang">KiotViet thời trang</a></td>
+<td>Trang chính thức cung cấp giải pháp quản lý bán hàng/kho theo ngành bán lẻ; URL có thể dẫn đến trang giải pháp chung</td>
+<td>Thiết kế SKU theo biến thể và thao tác kho dễ dùng; không sao chép giao diện</td>
+</tr>
+<tr>
+<td>Kế toán trực tuyến</td>
+<td><a href="https://amis.misa.vn/ld/amis-ke-toan">MISA AMIS Kế toán</a></td>
+<td>Trang sản phẩm giới thiệu kế toán, đối chiếu, báo cáo và kết nối dịch vụ</td>
+<td>Phân biệt báo cáo quản trị nội bộ với hệ thống kế toán và hóa đơn phải được kiểm chứng riêng</td>
+</tr>
+</tbody>
+</table>
+<p>Các trang thương mại mô tả khả năng do nhà cung cấp công bố. Dự án chưa thực hiện thử nghiệm đối chiếu từng sản phẩm, chưa chấm điểm thị phần, và không dùng lời giới thiệu của nhà cung cấp làm bằng chứng cho độ chính xác của ERP ChiDi.</p>
+<h2 id="nguon-noi-bo">Nguồn nội bộ</h2>
+<ul>
+<li>Workbook đang vận hành: <code>D:\ChiDi Manager\ChiDi_ERP\ChiDi_Online_Business_ERP.xlsx</code>.</li>
+<li>Snapshot đọc ngày 10/09/2026: <code>D:\ChiDi Manager\ChiDi_ERP\ChiDi_Online_ERP_Project\docs\architecture\CURRENT_SOURCE_SNAPSHOT.json</code>; SHA-256 workbook trong snapshot: <code>b85f3d515d392c38ca0a451717cd8eb2dd35f47a2e0cb0219b6fbe1cbe6785a4</code>.</li>
+<li>Báo cáo kiểm tra và báo cáo tháng 8 trong thư mục ERP cũ; dữ liệu cũ và dữ liệu được nhập thêm sau bàn giao phải được phân biệt.</li>
+<li>Người dùng xác nhận khai trương 18/08/2026, hai đợt đầu trước tháng 8, cho phép chọn ngày nhập ước tính; các khoản chi thiếu tài khoản vẫn chờ đối chiếu.</li>
+</ul>
+<p>Snapshot chỉ đọc ô dữ liệu đầu vào, không ghi lại workbook và không xác nhận thay cho chứng từ gốc. Số lượng kiểm thử của bản Excel trước đây không được dùng làm kết quả kiểm thử cho website mới.</p><p class="sourcefile"><a href="RESEARCH_SOURCES.md">Mở bản Markdown gốc</a></p></article></main><textarea id="prompt-source" class="sr" aria-hidden="true" tabindex="-1"># Prompt triển khai và phát triển ChiDi ERP
+
+&gt; Cập nhật đầu vào 11/09/2026: project đang ở V1.1. Đã có bộ chọn workspace, team RPC/UI, report RPC/BigInt, `002_operations.sql` và kiểm thử mới. URL/key đã được người dùng điền, app cloud chạy localhost:2000. Đọc [TASKS](../TASKS.md) và [CHANGELOG](CHANGELOG.md) trước; không thực hiện lại phần đã làm hoặc chạy lại 001. Xác minh 002 đã được chủ project chạy và Auth thật trước khi coi cloud hoàn tất. Các mục “chưa có” ở mô tả V1 phía dưới là mốc nền, đối chiếu trạng thái mới này để chọn công việc tiếp theo.
+
+Dùng prompt dưới đây để giao cho lập trình viên/coding agent. Đọc cùng kiến trúc và kết quả kiểm thử của project hiện có. Các phần mô tả giai đoạn tương lai là yêu cầu phát triển, không phải tuyên bố đã hoàn thành.
+
+---
+
+Bạn là kỹ sư phần mềm phụ trách ERP, hiểu quản trị tồn kho, công nợ, COD và kế toán quản trị. Hãy tiếp tục phát triển một sản phẩm chạy được cho ChiDi Shop, không dừng ở tư vấn hoặc tạo màn hình giả.
+
+## A. Bối cảnh và ràng buộc không được thay đổi
+
+Project nằm tại:
+
+```text
+D:\ChiDi Manager\ChiDi\_ERP\ChiDi\_Online\_ERP\_Project
+```
+
+ChiDi bán thời trang jeans/shorts, làm livestream, dùng FLive/Zalo trong hành trình đơn, giao hàng qua SPX/GHN/J&amp;T và nhận COD. Khai trương ngày 18/08/2026. Tự xây theo nghiệp vụ ChiDi, ngôn ngữ dễ hiểu, dễ bảo trì. Stack: **JavaScript ES modules, React JSX, Vite, Supabase Auth + PostgreSQL + RLS + RPC**. Không tự chuyển sang TypeScript, Django, MongoDB hoặc dịch vụ trả phí bắt buộc.
+
+Người dùng cho phép bổ sung tài khoản, Project URL và publishable key sau. Tiếp tục mọi việc có thể làm trên máy: code, schema, test, tài liệu, dữ liệu chuyển đổi. Không liên tục hỏi lại key hoặc mật khẩu. Khi chưa cấu hình cloud, chạy demo có nhãn rõ và dữ liệu riêng; không tự tải file shop lên mạng. Không tự tạo tài khoản/dịch vụ hoặc mua gói cho người dùng.
+
+Đọc README, kiến trúc, hợp đồng database, hướng dẫn Supabase và verification trước. Kiểm tra trạng thái file hiện tại và giữ mọi chỉnh sửa của người dùng. Không ghi đè source Excel, không khôi phục một file cũ lên bản đang được dùng, không xóa thư mục để scaffold lại. Nếu cần nghiên cứu công nghệ/giá/hạn mức, dùng tài liệu chính thức hiện hành và ghi ngày kiểm tra.
+
+## B. Những gì đã có và cách tiếp tục
+
+V1 có dashboard, danh mục SKU/NCC/kho/tài khoản, phiếu nhập một SKU, thu chi, import có đối chiếu, sổ nhận hàng/sổ tiền, đảo và nhật ký. Có hai repository demo/cloud, migration SQL, test nghiệp vụ, test quyền bằng PostgreSQL PGlite và E2E. Chạy kiểm tra để biết thực trạng, không coi mô tả này thay cho đọc code.
+
+Phần chưa triển khai gồm mời thành viên trong UI, báo cáo server nhất quán, đơn hàng/xuất/hoàn, FIFO bán, COD tự động, hóa đơn/AP/AR, sổ cái kép, khóa kỳ, backup tự động và tích hợp đối tác. Không tạo các menu chỉ có số minh họa rồi báo hoàn thành.
+
+Ưu tiên một phần việc xuyên suốt: schema → quy tắc → RPC/API → UI → test → tài liệu. Nếu chưa được chỉ định module mới, ưu tiên cứng hóa cloud và vận hành nhóm trước, sau đó đơn hàng/kho, COD/công nợ, kế toán rồi các phần mở rộng. Giữ ứng dụng chạy được sau mỗi lần giao.
+
+## C. Tiêu chuẩn nghiệp vụ và dữ liệu
+
+1. Mọi chứng từ có ID ổn định, workspace, ngày nghiệp vụ, thời điểm tạo/sửa, người thực hiện, trạng thái và căn cứ. Ngày nghiệp vụ dùng `date`; timestamp lưu timezone-aware; giao diện dùng Asia/Ho_Chi_Minh.
+2. Tách nguồn nhập, chứng từ nháp và sổ phát sinh. `source_status` không tự trở thành trạng thái được phép ghi. Ngày ước tính không ghi sổ; không có số dư không biến thành số 0 đã xác nhận.
+3. Số tiền VND là số nguyên chính xác. Không nhận giá trị bị cắt/làm tròn âm thầm; kiểm tràn cả dòng và tổng. Nếu thêm decimal/ngoại tệ phải có migration numeric, chuỗi decimal qua API và quy tắc làm tròn đã quyết định.
+4. Số lượng V1 theo sản phẩm nguyên. SKU thật phân biệt mẫu/màu/size; SKU tạm không được tự coi là mã đã xác nhận. Thay giá tham khảo không đổi giá trên phiếu đã ghi.
+5. Tất cả FK nghiệp vụ phải bảo vệ workspace, dùng composite FK hoặc cách có bằng chứng tương đương. Không chỉ tin workspace ID do trình duyệt gửi.
+6. Chứng từ nháp sửa được theo quyền. Chứng từ đã ghi không sửa/xóa trực tiếp số kinh tế; sai thì đảo/điều chỉnh có tham chiếu và lý do. Ngày đảo không trước ngày gốc hoặc vào kỳ đã khóa.
+7. Nhập kho, hóa đơn mua, trả tiền nhà cung cấp là ba nghiệp vụ riêng. Nhận COD, doanh thu và phí vận chuyển là ba số riêng. Góp vốn/rút vốn không tự là doanh thu/chi phí.
+8. Nguồn thật chưa đủ để tính doanh thu/lợi nhuận phải hiển thị “chưa đủ dữ liệu”, ghi rõ phần chưa đủ. Không lấp bằng dữ liệu demo hoặc giả định 0.
+
+## D. Database và quyền
+
+Giữ một database PostgreSQL chia phân hệ. Dùng SQL migration theo thứ tự, thử migration lên database sạch và bản đã có dữ liệu; không chạy migration phá dữ liệu để chữa lỗi môi trường. Hướng dẫn rollback thực tế: backup trước, migration bổ sung/restore đã thử; không hứa rollback bằng `DROP TABLE`.
+
+Đọc dữ liệu qua API có RLS; ghi dữ liệu kinh tế qua RPC có transaction. Với SECURITY DEFINER: kiểm auth.uid, kiểm role và workspace mỗi lệnh; search_path an toàn; tên bảng đầy đủ; revoke PUBLIC/anon; grant execute đúng người dùng. Helper private không được mở quyền rộng cho khách gọi trực tiếp.
+
+Role nền: owner, manager, staff, viewer. Nhân viên chỉ lập nháp; manager/owner duyệt ghi; owner quản lý số dư đầu, nhập nguồn và đảo. Khi thêm HR/kế toán, bổ sung quyền theo module và tách dữ liệu nhạy cảm. Không dùng việc ẩn nút để chứng minh bảo mật. Kiểm thử API bằng người không có quyền, người cùng project nhưng khác workspace, người đã bị thu hồi quyền và người chưa đăng nhập.
+
+Quản lý thành viên cần owner thao tác, đối chiếu danh tính, audit thay đổi quyền, không tự nâng quyền từ metadata do user sửa. Không cho chủ cuối cùng của workspace tự bị xóa khỏi vai trò owner. Không nhầm Supabase organization team với ERP workspace membership. Nếu triển khai lời mời qua email, secret chỉ nằm server và chỉ gửi sau thao tác được người dùng yêu cầu.
+
+Khi nhiều người cùng thao tác, khóa tài nguyên cần cập nhật, lấy khóa theo thứ tự ổn định, constraint bảo vệ sau cùng. `request_id` ổn định cho một lần người dùng gửi và retry; cùng request ID khác payload/action phải bị chặn. Các lệnh tạo mới có thể tạo trùng nếu mạng timeout sau commit: bổ sung khóa idempotency cho save/create khi cứng hóa, không chỉ khóa post.
+
+V1 post idempotent theo trạng thái chứng từ và unique ledger. Không coi test replay tuần tự trên PGlite là chứng minh concurrency. Viết test với nhiều kết nối PostgreSQL thực khi thêm giữ tồn, nhiều dòng phiếu hoặc tài nguyên dùng chung.
+
+## E. Phân hệ phải phát triển
+
+### E1. Quản trị và danh mục
+
+Workspace, thành viên, quyền theo module; sản phẩm/style/variant, đơn vị, SKU/barcode, NCC, khách, kho/vị trí, tài khoản tiền, kênh bán, đơn vị giao hàng, phân loại thu chi. Có tìm kiếm, bộ lọc, phân trang, xuất CSV an toàn và audit. Không xóa cứng danh mục đang được chứng từ tham chiếu; thiết kế ngừng dùng rõ ràng.
+
+### E2. Nhập hàng và kho
+
+PO header/lines, nhận từng phần, phiếu nhiều dòng, phí nhập phân bổ, hàng chờ kiểm, chuyển kho, kiểm kê, điều chỉnh có duyệt, tồn thực/tồn giữ/tồn khả dụng/đang đi, lô giá vốn. Ghi sổ cả phiếu trong một transaction, lỗi một dòng rollback toàn phiếu. Không tính bản nháp vào tồn. Quy tắc âm tồn cấu hình và chặn ở server.
+
+### E3. Bán hàng và giao nhận
+
+Khách, đơn/chi tiết, chiết khấu dòng/đơn, giữ tồn, hủy nhả tồn, đóng gói, bàn giao, giao một phần, hoàn một phần, đổi hàng và hoàn tiền. Trạng thái thanh toán độc lập giao nhận. Giữ một order ID nội bộ và unique external IDs theo nguồn/workspace. Không nhập một đơn từ hai kênh thành hai doanh thu.
+
+### E4. COD và đối soát
+
+Nhập CSV đối soát theo mapping cấu hình, giữ file/hash/dòng nguồn, xem trước, xác minh vận đơn, tổng COD, phí, thuế/phụ phí theo chứng từ, tiền ngân hàng, thiếu/thừa. Có khớp từng phần, nhiều đợt thanh toán cho một đơn nếu nghiệp vụ cho phép, ghi rõ unresolved. COD về ngân hàng chỉ thu hồi khoản phải thu; không thêm doanh thu. Tiền mua hàng cũng phải phân bổ vào hóa đơn/khoản ứng, không tính chi phí trùng.
+
+### E5. Kế toán quản trị
+
+Hóa đơn NCC, hàng nhận chưa hóa đơn, AP/AR, ứng trước, phân bổ thanh toán, danh mục tài khoản, journal header/lines, số dư đầu, kỳ kế toán, khóa kỳ, mở kỳ có lý do. Ghi sổ Nợ/Có phải cân trong transaction; đối chiếu stock/cash/AP/AR với GL. P&amp;L theo dồn tích cần doanh thu/giá vốn/phí đúng kỳ; bảng cân đối và lưu chuyển tiền có định nghĩa rõ. Không tự hardcode thuế, hệ thống tài khoản pháp định hoặc tuyên bố tuân thủ khi chưa được kiểm chứng.
+
+### E6. Các phân hệ sau
+
+CRM/livestream theo phiên, hiệu quả marketing, chính sách khuyến mãi, lương/phải trả nhân viên, tài sản/khấu hao và phân bổ chi phí trả trước. Cấu hình quy tắc và ngày hiệu lực; lịch sử báo cáo không đổi khi sửa tham số tương lai. Trước mỗi phần, xác định nguồn dữ liệu và ai được xem. Chưa có dữ liệu thì để trạng thái chờ tích hợp rõ ràng.
+
+## F. Tích hợp và vận hành
+
+Chỉ triển khai API từ tài liệu chính thức/tài khoản được cấp. Bí mật để trong Supabase Edge Function hoặc backend JavaScript, không trong React hoặc `VITE_*`. Webhook kiểm chữ ký, thời gian, event ID, chống replay, xử lý sự kiện lặp/sai thứ tự và ghi audit. Outbox lưu cùng giao dịch nghiệp vụ, worker retry sau commit, có dead-letter/nhật ký lỗi để xử lý. Không tuyên bố exactly-once delivery qua mạng.
+
+Báo cáo phải aggregate trên server theo một snapshot nhất quán khi triển khai đa người/dữ liệu lớn; không tải mọi bảng về trình duyệt vô hạn. Index theo workspace, ngày và khóa tra cứu. Xác định mục tiêu tải bằng dữ liệu đo được, không tự ghi SLA chưa thử. Không dùng Realtime thay cho giao dịch hoặc làm nguồn chứng cứ đã commit.
+
+Free database không đồng nghĩa free mọi thứ. Ghi hạn mức và phương án nâng cấp/di chuyển; không tự mua gói. Tệp riêng tư, URL có thời hạn, kiểm loại/dung lượng, backup metadata và object riêng. Lập lịch backup ngoài hệ thống, bảo vệ/mã hóa theo môi trường, thử restore và ghi kết quả. RPO/RTO phải phù hợp cơ chế đã chạy; không cam kết 15 phút khi chỉ có dump hằng ngày.
+
+## G. Chuyển dữ liệu Excel hiện có
+
+Nguồn chính nằm trong `D:\ChiDi Manager\ChiDi_ERP\ChiDi_Online_Business_ERP.xlsx`. Kiểm tra lại file hiện tại trước khi chuyển; số snapshot ngày 10/09/2026 là 17 dòng nhập, 1.566 sản phẩm, 79.043.000 đ và 12 thu chi. Bản cũ 15 dòng không được ghi đè lên dữ liệu 17 dòng. Đơn bán trong snapshot là 0; không tự tạo doanh thu cho khớp COD.
+
+Ngày khai trương được xác nhận, hai đợt đầu trước tháng 8 được xác nhận; ngày random theo tuần chỉ là ước tính. Các tài khoản chưa biết vẫn null/chờ đối chiếu. Những dòng nguồn đã đánh dấu ghi không tự được cấp trạng thái posted khi nhập sang ERP.
+
+Dùng script read-only xuất JSON mới, SHA-256 file, legacy ID ổn định, nguồn sheet/dòng, giá trị và ghi chú gốc. Nhập lại file không trùng; file đổi hash nhưng cùng legacy ID không sinh bản mới. Nếu cùng ID có nội dung thay đổi, trả conflict có chi tiết, giữ dữ liệu hiện có. Không đổi ID nguồn để né kiểm tra. Thư mục dữ liệu thật gitignored và không nhập vào frontend bundle.
+
+Chuyển số dư đầu kho/tiền/công nợ là bước riêng, cần thời điểm cutover và đối chiếu. Không vừa chuyển toàn bộ lịch sử vừa cộng số dư đầu cùng giai đoạn để làm tăng kép.
+
+## H. Giao diện và khả năng sử dụng
+
+Tiếng Việt dễ hiểu, font phổ biến, màu xanh trầm/kem, bố cục rõ, dùng được ở 390 px và desktop. Số tiền căn phải, có đơn vị và dấu nghìn; ngày hiển thị theo địa phương và ghi chú ngày ước tính. Form có label, trạng thái loading/empty/error/success, chống double submit, giữ nhập liệu khi lỗi, thông báo nguyên nhân cụ thể.
+
+Lưu nháp và ghi sổ là hai thao tác riêng. Ghi sổ hiển thị chứng từ/số tiền và xác nhận; đảo yêu cầu lý do. Modal dùng keyboard/focus trap/Escape; nút icon có nhãn. Không bật dialog hỏi xác nhận cho mọi thay đổi nhỏ. Bộ lọc báo cáo phải ghi rõ kỳ và phạm vi; số dư tại ngày chọn không dùng ngày hôm nay ngầm.
+
+Demo luôn có nhãn, dùng số giả có ghi chú; cloud lỗi không tự thay bằng demo. Không gọi các nhóm thanh toán là lợi nhuận hoặc công nợ phải trả khi chưa có nghiệp vụ đối ứng. Không đưa thông tin xây dựng app, secret, tên bảng kỹ thuật vào luồng của nhân viên trừ phần thiết lập quản trị cần thiết.
+
+## I. Tiêu chí nghiệm thu bắt buộc
+
+| Tình huống | Kết quả mong đợi |
+|---|---|
+| Nhập 3 × 85.000 + 5.000 | Tổng 260.000 chính xác, draft chưa tăng kho |
+| Ngày 30/02 hoặc tiền 1,5 VND | Bị từ chối rõ ràng, không làm tròn âm thầm |
+| SKU tạm/ngày ước tính/tài khoản chưa rõ | Không ghi sổ; nháp vẫn giữ để đối chiếu |
+| Replay post, mất response sau commit | Một hiệu ứng ledger, audit có thể truy nguồn |
+| Hai người bán sản phẩm cuối cùng | Không cấp tồn vượt chính sách; thử bằng hai kết nối thật |
+| Đảo ngày sau ngày gốc | Trước ngày đảo thấy gốc, sau ngày đảo thấy ròng; không xóa nguồn |
+| Workspace B biết UUID A | Không đọc, sửa hoặc tham chiếu FK trái workspace |
+| Staff/viewer gọi RPC trực tiếp | Bị chặn theo quyền dù bypass giao diện |
+| Import lại/cùng ID khác file hash | Không trùng; thay đổi nội dung báo conflict và không ghi đè |
+| Hai bảng Excel cùng khoản trả tiền | Nhận diện một sự kiện, không cộng kép chi phí/kho |
+| FIFO lô 5 × 80k + 5 × 90k, bán 7 | Giá vốn 580k, còn 270k; truy nguyên lô |
+| Bán 300k, COD chuyển 275k, phí25k | Doanh thu theo chính sách 300k một lần, xóa phải thu 300k |
+| Góp vốn/rút vốn/trả công nợ | Tiền đổi đúng, không tự đổi doanh thu/lợi nhuận |
+| Sổ kế toán kép | Nợ = Có từng journal và đối chiếu subledger, chặn journal lệch |
+| Kỳ đã đóng | Không ghi lùi/sửa vào kỳ, mở lại có quyền và audit |
+| Report &gt;1.000 dòng | Không bị cắt bởi mặc định API; paging/snapshot được kiểm tra |
+| Backup restore | Khôi phục thử thành công, kiểm ID/quyền/tổng, ghi thời gian đo |
+
+Chỉ áp dụng test cho nghiệp vụ đã triển khai trong giai đoạn; những tiêu chí chưa triển khai ghi rõ backlog. Không đổi tên/bỏ test sai để báo xanh. Không viết hàng loạt test chỉ lặp lại tên hàm; ưu tiên bất biến tài chính, quyền, lỗi và giao dịch thất bại không để nửa dữ liệu.
+
+## J. Cách làm việc và đầu ra
+
+Đầu lượt, đọc repo và chạy kiểm tra liên quan. Phân chia việc độc lập nếu tiết kiệm thời gian, giữ quyền sở hữu file rõ. Sửa lỗi, viết migration bổ sung, chạy test phù hợp, build và thử trình duyệt. Khi thiếu thông tin không ngăn công việc độc lập, tiếp tục và đánh dấu giả định; chỉ hỏi vấn đề thực sự cần quyết định. Không dừng ở “tôi có thể làm”.
+
+Mỗi lần bàn giao phải có: code chạy được, migration/contract khớp frontend, test phù hợp, hướng dẫn thao tác, cập nhật kiến trúc và README, kết quả kiểm tra có bằng chứng, phần còn chờ và bước tiếp theo cụ thể. Không tự xuất bản hoặc gửi dữ liệu ra ngoài khi chưa nằm trong phạm vi người dùng yêu cầu.
+
+Báo cáo bằng tiếng Việt, nêu kết quả trước, giải thích vừa đủ. Liệt kê rõ test trên local, test PostgreSQL engine, test trình duyệt và test cloud thật; không lấy kết quả một loại để khẳng định loại khác. Giữ sản phẩm và tài liệu ở đúng thư mục project người dùng đã chỉ định.
+
+---
+
+Tài liệu đi kèm để người thực hiện bắt đầu: [README](../README.md), [kiến trúc](KIEN_TRUC_ERP_CHIDI.md), [database](DATABASE_CONTRACT.md), [Supabase](SUPABASE_SETUP.md), [kiểm tra](VERIFICATION.md).
+</textarea><footer>V1 chạy trên máy; Supabase đã cấu hình; migration 002 và đăng nhập thật còn chờ. Dữ liệu riêng không nằm trong trang tài liệu này.</footer><script>
+const select=(id)=>{if(!document.getElementById(id)?.matches('[data-panel]'))id='architecture';document.querySelectorAll('[data-panel]').forEach(p=>p.hidden=p.id!==id);document.querySelectorAll('[data-target]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.target===id)));};
+document.querySelectorAll('[data-target]').forEach(b=>b.onclick=()=>{location.hash=b.dataset.target;window.scrollTo(0,0)});document.querySelectorAll('[data-page]').forEach(a=>a.onclick=()=>{select(a.dataset.page);window.scrollTo(0,0)});addEventListener('hashchange',()=>select(location.hash.slice(1)));select(location.hash.slice(1));
+document.getElementById('copy-prompt').onclick=async function(){const input=document.getElementById('prompt-source');try{if(navigator.clipboard)await navigator.clipboard.writeText(input.value);else{input.select();if(!document.execCommand('copy'))throw Error();}this.textContent='Đã sao chép prompt';}catch{this.textContent='Mở bản Markdown gốc để sao chép';}};
+</script></body></html>
