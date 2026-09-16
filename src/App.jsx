@@ -23,6 +23,7 @@ import {
   ArrowRight,
   ShoppingBag,
   Users,
+  Layers3,
 } from 'lucide-react';
 import { cloudConfigured, requestedCloud, supabase } from './lib/repository.js';
 import { today, money, validDate } from './lib/domain.js';
@@ -40,6 +41,7 @@ import {
 import { DocumentForm, MasterForm } from './forms.jsx';
 import { Modal, ErrorMessage, Field } from './components.jsx';
 const SalesWorkspace = lazy(() => import('./features/Sales.jsx'));
+const CommerceFoundation = lazy(() => import('./features/CommerceFoundation.jsx'));
 
 const NAV = [
   ['overview', 'Tổng quan', LayoutDashboard, 'Toàn cảnh vận hành'],
@@ -49,6 +51,7 @@ const NAV = [
   ['inventory', 'Kho hàng', Boxes, 'Tồn kho, đã giữ và hàng đang giao'],
   ['cash', 'Thu chi', Wallet, 'Kiểm soát từng khoản tiền'],
   ['catalog', 'Danh mục', Tags, 'Dữ liệu dùng chung cho nghiệp vụ'],
+  ['foundation', 'Nền tảng thương mại', Layers3, 'Biến thể, khách hàng, giữ tồn và kế hoạch thanh toán'],
   ['reconciliation', 'Đối chiếu dữ liệu', FileSearch, 'Bảo toàn nguồn, nhập đúng một lần'],
   ['reports', 'Báo cáo', ChartNoAxesCombined, 'Thu chi và số dư đã ghi sổ'],
   ['audit', 'Nhật ký', History, 'Dấu vết thao tác và chứng từ'],
@@ -516,6 +519,8 @@ export default function App() {
       case 'customers':
       case 'inventory':
         return <Suspense fallback={<p>Đang mở phân hệ V2…</p>}><SalesWorkspace key={current[0]} repo={repo} data={data} view={current[0]} onModalChange={setSalesModalOpen} /></Suspense>;
+      case 'foundation':
+        return <Suspense fallback={<p>Đang mở nền tảng thương mại…</p>}><CommerceFoundation repo={repo} data={data} onModalChange={setSalesModalOpen} /></Suspense>;
       case 'reconciliation':
         return <Reconciliation data={data} repo={repo} onDone={refresh} isOwner={isOwner} />;
       case 'reports':
@@ -670,7 +675,7 @@ export default function App() {
               <h1>{current[1]}</h1>
               <p>{current[3]}</p>
             </div>
-            <div className={`date-controls ${['sales', 'customers', 'inventory'].includes(current[0]) ? 'sales-hide-period' : ''}`}>
+            <div className={`date-controls ${['sales', 'customers', 'inventory', 'foundation'].includes(current[0]) ? 'sales-hide-period' : ''}`}>
               <label>
                 Kỳ báo cáo
                 <input

@@ -370,12 +370,21 @@ export const supabase =
       )
     : null;
 export function cloudRepository(workspace, role) {
+  const foundationMigrations = {
+    get_catalog_state: '004_catalog_variants_aliases.sql', save_product_style: '004_catalog_variants_aliases.sql',
+    save_product_variant: '004_catalog_variants_aliases.sql', save_product_alias: '004_catalog_variants_aliases.sql', resolve_product_alias: '004_catalog_variants_aliases.sql',
+    get_customer_foundation: '005_customer_order_foundation.sql', save_customer_identity: '005_customer_order_foundation.sql', save_customer_address: '005_customer_order_foundation.sql',
+    set_order_address: '005_customer_order_foundation.sql', save_order_payment_intent: '005_customer_order_foundation.sql', void_order_payment_intent: '005_customer_order_foundation.sql',
+    get_inventory_foundation: '006_inventory_reservations.sql', reserve_inventory: '006_inventory_reservations.sql', release_inventory_reservation: '006_inventory_reservations.sql', transfer_inventory_reservations: '006_inventory_reservations.sql',
+  };
   const rpc = async (name, args) => {
     const { data, error } = await supabase.rpc(name, args);
     if (error)
       throw new Error(
         error.code === 'PGRST202'
-          ? (['get_sales_state', 'save_customer', 'save_sales_order', 'transition_sales_order'].includes(name)
+          ? (foundationMigrations[name]
+            ? `Chưa có chức năng Phase B trong database. Xem docs/PHASE_B_COMMERCE_FOUNDATION.md và migration ${foundationMigrations[name]}. Không chạy lại migration lịch sử.`
+            : ['get_sales_state', 'save_customer', 'save_sales_order', 'transition_sales_order'].includes(name)
             ? 'Chưa có phân hệ V2 trong database. Chạy migration 003_sales_inventory.sql theo docs/THIET_LAP_V2.md, rồi tải lại. Không chạy lại 001 hoặc 002.'
             : 'Chưa có chức năng này trong database. Chủ shop chạy migration 002_operations.sql theo hướng dẫn vận hành V1.1, rồi tải lại.')
           : error.message,
@@ -385,6 +394,22 @@ export function cloudRepository(workspace, role) {
   const addWorkspace = (p) => ({ ...p, workspace_id: workspace.id });
   return {
     mode: 'cloud',
+    foundationState: async () => {
+      const [catalog, customer, stock, sales] = await Promise.all(['get_catalog_state','get_customer_foundation','get_inventory_foundation','get_sales_state'].map(name => rpc(name, { p_workspace_id: workspace.id })));
+      return { catalog, customer, stock, sales };
+    },
+    saveProductStyle: (p) => rpc('save_product_style', { p_workspace_id: workspace.id, p_payload: p }),
+    saveProductVariant: (p) => rpc('save_product_variant', { p_workspace_id: workspace.id, p_payload: p }),
+    saveProductAlias: (p) => rpc('save_product_alias', { p_workspace_id: workspace.id, p_payload: p }),
+    resolveProductAlias: (query) => rpc('resolve_product_alias', { p_workspace_id: workspace.id, p_query: query }),
+    saveCustomerIdentity: (p) => rpc('save_customer_identity', { p_workspace_id: workspace.id, p_payload: p }),
+    saveCustomerAddress: (p) => rpc('save_customer_address', { p_workspace_id: workspace.id, p_payload: p }),
+    setOrderAddress: (id, addressId) => rpc('set_order_address', { p_workspace_id: workspace.id, p_order_id: id, p_address_id: addressId || null }),
+    saveOrderPaymentIntent: (p) => rpc('save_order_payment_intent', { p_workspace_id: workspace.id, p_payload: p }),
+    voidOrderPaymentIntent: (id, reason) => rpc('void_order_payment_intent', { p_workspace_id: workspace.id, p_id: id, p_reason: reason }),
+    reserveInventory: (p, requestId) => rpc('reserve_inventory', { p_workspace_id: workspace.id, p_payload: p, p_request_id: requestId }),
+    releaseInventoryReservation: (id, date, reason, requestId) => rpc('release_inventory_reservation', { p_workspace_id: workspace.id, p_reservation_id: id, p_date: date, p_reason: reason, p_request_id: requestId }),
+    transferInventoryReservations: (orderId, ids, date, requestId) => rpc('transfer_inventory_reservations', { p_workspace_id: workspace.id, p_order_id: orderId, p_reservation_ids: ids, p_date: date, p_request_id: requestId }),
     salesState: () => rpc('get_sales_state', { p_workspace_id: workspace.id }),
     saveCustomer: (p) => rpc('save_customer', { p_workspace_id: workspace.id, p_payload: p }),
     saveSalesOrder: (p) => rpc('save_sales_order', { p_workspace_id: workspace.id, p_payload: p }),

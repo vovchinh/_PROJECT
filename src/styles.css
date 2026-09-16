@@ -1830,6 +1830,15 @@ td.positive strong {
 .sales-toolbar .search { flex: 1; min-width: 170px; }
 .sales-toolbar > select { border: 1px solid #d7dfd1; border-radius: 7px; padding: 11px; background: white; max-width: 100%; }
 .sales-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.foundation-page { display: grid; gap: 20px; min-width: 0; }
+.foundation-toolbar, .foundation-tabs, .foundation-actions, .foundation-lookup { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.foundation-toolbar { justify-content: space-between; }
+.foundation-lookup { align-items: end; }
+.foundation-lookup .field { flex: 1; min-width: 160px; }
+.foundation-choices { border: 1px solid var(--border, #dce3df); border-radius: 12px; padding: 14px; display: grid; gap: 12px; max-height: 300px; overflow-y: auto; }
+.foundation-page .table-scroll td { overflow-wrap: anywhere; }
+.foundation-page .button.small { padding: 7px 11px; font-size: 12px; }
+@media (max-width: 640px) { .foundation-tabs { width: 100%; } .foundation-tabs .button { flex: 1 1 140px; } .foundation-page .panel-head { align-items: start; flex-wrap: wrap; gap: 12px; } }
 .sales-lines { display: grid; gap: 16px; margin: 20px 0; }
 .sales-line { border: 1px solid #dce5d7; border-radius: 10px; padding: 16px; background: #f9fbf6; }
 .sales-line-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }

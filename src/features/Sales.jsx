@@ -83,8 +83,11 @@ function ActionForm({ order, action, state, data, run, onClose }) {
 function Detail({ order, state, data, canDraft, canPost, onEdit, onAction, onClose }) {
   const lines = state.sales_order_lines.filter((l) => l.order_id === order.id);
   const events = state.sales_events.filter((e) => e.order_id === order.id);
-  return <Modal title={order.code} description={`${nameOf(state.customers, order.customer_id)} · ${labels[order.status]}`} onClose={onClose}>
+  const snapshot = order.customer_snapshot;
+  const address = snapshot?.shipping_address;
+  return <Modal title={order.code} description={`${snapshot?.customer?.name || nameOf(state.customers, order.customer_id)} · ${labels[order.status]}`} onClose={onClose}>
     <div className="form-body"><div className="sales-detail-meta"><span>Ngày đặt: {dateLabel(order.order_date)}</span><span>Kho: {nameOf(data.warehouses, order.warehouse_id)}</span><span>Kênh: {order.channel}</span><span>Vận đơn: {order.carrier || '—'} / {order.tracking_number || '—'}</span></div>
+      {address ? <section className="sales-note" aria-label="Thông tin nhận hàng lúc xác nhận"><strong>Thông tin nhận hàng lúc xác nhận đơn</strong><p>{address.recipient_name} · {address.phone}</p><p>{[address.address_line, address.region, address.city, address.country].filter(Boolean).join(', ')}</p><small>{snapshot.source === 'legacy_contact_unverified' ? 'Liên hệ cũ — chưa xác minh địa chỉ.' : address.verified ? 'Địa chỉ đã xác minh thủ công.' : 'Địa chỉ được chọn — chưa xác minh.'}</small></section> : <p className="sales-note">{order.status === 'draft' ? 'Chọn địa chỉ trong Nền tảng thương mại → Hồ sơ khách trước khi xác nhận đơn.' : 'Đơn này chưa có bản chụp thông tin nhận hàng lịch sử.'}</p>}
       <Table headers={['Sản phẩm', 'SL', 'Đã hoàn', 'Thành tiền', 'Giá vốn xuất']} empty={!lines.length}>{lines.map((l) => <tr key={l.id}><td><strong>{codeOf(data.products, l.product_id)}</strong><small>{nameOf(data.products, l.product_id)}</small></td><td>{qty(l.qty)}</td><td>{qty(l.returned_qty)}</td><td>{money(l.line_total)}</td><td>{order.shipped_date ? money(l.cost_amount) : 'Chưa xuất'}</td></tr>)}</Table>
       <p className="sales-total">Tổng đơn gốc: {money(order.total_amount)}</p>{order.notes && <p className="sales-note">{order.notes}</p>}
       <h3>Lịch sử đơn</h3><div className="sales-timeline">{events.length ? events.map((e) => <div key={e.id}><span>{dateLabel(e.event_date)}</span><strong>{actions[e.action] || e.action}</strong>{e.reason && <p>{e.reason}</p>}</div>) : <p>Đơn đang ở bước nháp.</p>}</div>
