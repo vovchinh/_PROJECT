@@ -1,5 +1,11 @@
 # Hướng dẫn sử dụng V1
 
+**24/09/2026 — bản sửa 011:** ID có số được hỗ trợ; lỗi khóa ID sau CONNECT được sửa khi chưa có phiên. Chưa LIVE hiện **Vui lòng bật live**; LIVE kết thúc tự ngắt. Bấm kết nối sẽ tự nhận bình luận khi listener đã chạy, không cần người khác duyệt. Xem [cách nâng cấp và vận hành](TIKTOK_CHANNEL_SETUP.md).
+
+**23/09/2026:** màn hình TikTok dùng ba bước **lưu ID → chọn kênh → KẾT NỐI LIVE**, không yêu cầu người bán tạo chiến dịch/phiên. Xem [hướng dẫn TikTok mới](TIKTOK_CHANNEL_SETUP.md). Chốt/giữ hàng/in lại theo [hướng dẫn livestream/máy in](PHASE_C_LIVE_COMMERCE.md); bình luận chưa tạo bán hoặc doanh thu.
+
+**Cập nhật Phase B (17/09/2026):** xem [hướng dẫn Nền tảng thương mại](PHASE_B_COMMERCE_FOUNDATION.md) cho SKU/alias, địa chỉ khách, giữ hàng và kế hoạch thanh toán trên V2. Các thao tác nền V1 bên dưới vẫn được giữ; không coi kế hoạch thanh toán là thu chi đã ghi sổ.
+
 Mở **START_CHIDI.cmd**, sau đó vào `http://localhost:2000`. Nếu chưa điền Supabase, nhãn góc trên là **Chạy thử · lưu trên máy**. Đổi trình duyệt hoặc đổi từ `127.0.0.1` sang `localhost` sẽ dùng vùng dữ liệu thử khác.
 
 ## Thực hành lần đầu

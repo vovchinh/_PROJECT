@@ -1,5 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import { emptySalesData, salesState, saveCustomer, saveSalesOrder, transitionSalesOrder, assertPurchaseStockChange } from './sales-demo.js';
+import {
+  emptySalesData,
+  salesState,
+  saveCustomer,
+  saveSalesOrder,
+  transitionSalesOrder,
+  assertPurchaseStockChange,
+} from './sales-demo.js';
 import {
   assertCashPost,
   assertPurchasePost,
@@ -198,7 +205,8 @@ export function demoRepository(storage = globalThis.localStorage) {
     salesState: async () => salesState(read()),
     saveCustomer: async (p) => mutate((d) => saveCustomer(d, p)),
     saveSalesOrder: async (p) => mutate((d) => saveSalesOrder(d, p)),
-    transitionSalesOrder: async (id, action, payload, requestId) => mutate((d) => transitionSalesOrder(d, id, action, payload, requestId)),
+    transitionSalesOrder: async (id, action, payload, requestId) =>
+      mutate((d) => transitionSalesOrder(d, id, action, payload, requestId)),
     load: async () => copy(read()),
     saveMaster: async (kind, p) => mutate((d) => saveMaster(d, kind, p)),
     createPurchase: async (p) => mutate((d) => create(d, 'purchase', p)),
@@ -370,50 +378,350 @@ export const supabase =
       )
     : null;
 export function cloudRepository(workspace, role) {
+  const liveMigrations = {
+    get_live_runtime: '012_live_runtime_telemetry.sql',
+    get_live_intake: '007_live_intake.sql',
+    save_live_campaign: '007_live_intake.sql',
+    save_live_session: '007_live_intake.sql',
+    save_live_integration_account: '007_live_intake.sql',
+    ingest_live_comments: '007_live_intake.sql',
+    claim_live_comment: '007_live_intake.sql',
+    release_live_comment_claim: '007_live_intake.sql',
+    get_live_commerce: '008_live_tickets_print.sql',
+    commit_live_sale_ticket: '008_live_tickets_print.sql',
+    void_live_sale_ticket: '008_live_tickets_print.sql',
+    claim_live_print_job: '008_live_tickets_print.sql',
+    finish_live_print_job: '008_live_tickets_print.sql',
+    requeue_live_print_job: '008_live_tickets_print.sql',
+    ...Object.fromEntries(
+      ['get_tiktok_channels', 'save_tiktok_channel', 'request_tiktok_connection'].map((name) => [
+        name,
+        '010_tiktok_channel_flow.sql',
+      ]),
+    ),
+    ...Object.fromEntries(
+      [
+        'get_live_operations',
+        'request_live_connection',
+        'set_live_comment_review',
+        'ingest_live_comments_v2',
+        'save_live_printer',
+        'claim_live_print_job_configured',
+        'reset_live_campaign_counter',
+        'get_live_stock_preview',
+      ].map((name) => [name, '009_live_operations.sql']),
+    ),
+  };
   const foundationMigrations = {
-    get_catalog_state: '004_catalog_variants_aliases.sql', save_product_style: '004_catalog_variants_aliases.sql',
-    save_product_variant: '004_catalog_variants_aliases.sql', save_product_alias: '004_catalog_variants_aliases.sql', resolve_product_alias: '004_catalog_variants_aliases.sql',
-    get_customer_foundation: '005_customer_order_foundation.sql', save_customer_identity: '005_customer_order_foundation.sql', save_customer_address: '005_customer_order_foundation.sql',
-    set_order_address: '005_customer_order_foundation.sql', save_order_payment_intent: '005_customer_order_foundation.sql', void_order_payment_intent: '005_customer_order_foundation.sql',
-    get_inventory_foundation: '006_inventory_reservations.sql', reserve_inventory: '006_inventory_reservations.sql', release_inventory_reservation: '006_inventory_reservations.sql', transfer_inventory_reservations: '006_inventory_reservations.sql',
+    get_catalog_state: '004_catalog_variants_aliases.sql',
+    save_product_style: '004_catalog_variants_aliases.sql',
+    save_product_variant: '004_catalog_variants_aliases.sql',
+    save_product_alias: '004_catalog_variants_aliases.sql',
+    resolve_product_alias: '004_catalog_variants_aliases.sql',
+    get_customer_foundation: '005_customer_order_foundation.sql',
+    save_customer_identity: '005_customer_order_foundation.sql',
+    save_customer_address: '005_customer_order_foundation.sql',
+    set_order_address: '005_customer_order_foundation.sql',
+    save_order_payment_intent: '005_customer_order_foundation.sql',
+    void_order_payment_intent: '005_customer_order_foundation.sql',
+    get_inventory_foundation: '006_inventory_reservations.sql',
+    reserve_inventory: '006_inventory_reservations.sql',
+    release_inventory_reservation: '006_inventory_reservations.sql',
+    transfer_inventory_reservations: '006_inventory_reservations.sql',
   };
   const rpc = async (name, args) => {
     const { data, error } = await supabase.rpc(name, args);
     if (error)
       throw new Error(
         error.code === 'PGRST202'
-          ? (foundationMigrations[name]
-            ? `Chưa có chức năng Phase B trong database. Xem docs/PHASE_B_COMMERCE_FOUNDATION.md và migration ${foundationMigrations[name]}. Không chạy lại migration lịch sử.`
-            : ['get_sales_state', 'save_customer', 'save_sales_order', 'transition_sales_order'].includes(name)
-            ? 'Chưa có phân hệ V2 trong database. Chạy migration 003_sales_inventory.sql theo docs/THIET_LAP_V2.md, rồi tải lại. Không chạy lại 001 hoặc 002.'
-            : 'Chưa có chức năng này trong database. Chủ shop chạy migration 002_operations.sql theo hướng dẫn vận hành V1.1, rồi tải lại.')
+          ? liveMigrations[name]
+            ? `Chưa có chức năng Phase C trong database. Xem docs/PHASE_C_LIVE_COMMERCE.md và migration ${liveMigrations[name]}. Không chạy lại migration lịch sử.`
+            : foundationMigrations[name]
+              ? `Chưa có chức năng Phase B trong database. Xem docs/PHASE_B_COMMERCE_FOUNDATION.md và migration ${foundationMigrations[name]}. Không chạy lại migration lịch sử.`
+              : [
+                    'get_sales_state',
+                    'save_customer',
+                    'save_sales_order',
+                    'transition_sales_order',
+                  ].includes(name)
+                ? 'Chưa có phân hệ V2 trong database. Chạy migration 003_sales_inventory.sql theo docs/THIET_LAP_V2.md, rồi tải lại. Không chạy lại 001 hoặc 002.'
+                : 'Chưa có chức năng này trong database. Chủ shop chạy migration 002_operations.sql theo hướng dẫn vận hành V1.1, rồi tải lại.'
           : error.message,
       );
     return data;
   };
+  // A timed-out command may have committed. Callers keep its request ID for retry.
+  const boundedRpc = async (name, args, signal) => {
+    const controller = new AbortController();
+    const cancel = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    signal?.addEventListener('abort', cancel, { once: true });
+    let timer;
+    try {
+      const result = await Promise.race([
+        supabase.rpc(name, args).abortSignal(controller.signal),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            controller.abort();
+            reject(
+              new Error(
+                'Chưa nhận được phản hồi trong 12 giây. Bấm thử lại để kiểm tra cùng yêu cầu; hệ thống chưa xác nhận kết nối.',
+              ),
+            );
+          }, 12000);
+        }),
+      ]);
+      if (result.error) {
+        if (controller.signal.aborted)
+          throw new Error(
+            'Chưa nhận được phản hồi. Bấm thử lại để kiểm tra cùng yêu cầu; hệ thống chưa xác nhận kết nối.',
+          );
+        if (result.error.code === 'PGRST202' && liveMigrations[name])
+          throw new Error(
+            `Chưa có dữ liệu theo dõi LIVE. Chủ shop áp dụng migration ${liveMigrations[name]} rồi tải lại; không chạy lại migration lịch sử.`,
+          );
+        throw new Error(result.error.message);
+      }
+      return result.data;
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', cancel);
+    }
+  };
   const addWorkspace = (p) => ({ ...p, workspace_id: workspace.id });
   return {
     mode: 'cloud',
+    liveRuntime: (sessionId = null, { signal } = {}) =>
+      boundedRpc(
+        'get_live_runtime',
+        { p_workspace_id: workspace.id, p_session_id: sessionId },
+        signal,
+      ),
+    tiktokChannels: () => rpc('get_tiktok_channels', { p_workspace_id: workspace.id }),
+    saveTikTokChannel: (payload, requestId) =>
+      rpc('save_tiktok_channel', {
+        p_workspace_id: workspace.id,
+        p_payload: payload,
+        p_request_id: requestId,
+      }),
+    requestTikTokConnection: (channelId, desired, requestId, { signal } = {}) =>
+      boundedRpc(
+        'request_tiktok_connection',
+        {
+          p_workspace_id: workspace.id,
+          p_channel_id: channelId,
+          p_desired_state: desired,
+          p_request_id: requestId,
+        },
+        signal,
+      ),
+    liveOperations: () => rpc('get_live_operations', { p_workspace_id: workspace.id }),
+    requestLiveConnection: (sessionId, desired, requestId) =>
+      rpc('request_live_connection', {
+        p_workspace_id: workspace.id,
+        p_session_id: sessionId,
+        p_desired_state: desired,
+        p_request_id: requestId,
+      }),
+    setLiveCommentReview: (commentId, status, reason, requestId) =>
+      rpc('set_live_comment_review', {
+        p_workspace_id: workspace.id,
+        p_comment_id: commentId,
+        p_status: status,
+        p_reason: reason,
+        p_request_id: requestId,
+      }),
+    liveStockPreview: (sessionId, productId, date) =>
+      rpc('get_live_stock_preview', {
+        p_workspace_id: workspace.id,
+        p_session_id: sessionId,
+        p_product_id: productId,
+        p_date: date,
+      }),
+    saveLivePrinter: (payload, requestId) =>
+      rpc('save_live_printer', {
+        p_workspace_id: workspace.id,
+        p_payload: payload,
+        p_request_id: requestId,
+      }),
+    resetLiveCounter: (campaignId, requestId) =>
+      rpc('reset_live_campaign_counter', {
+        p_workspace_id: workspace.id,
+        p_campaign_id: campaignId,
+        p_request_id: requestId,
+      }),
+    claimConfiguredLivePrintJob: (jobId, requestId) =>
+      rpc('claim_live_print_job_configured', {
+        p_workspace_id: workspace.id,
+        p_job_id: jobId,
+        p_request_id: requestId,
+      }),
+    liveIntake: (sessionId = null, cursor = null) =>
+      rpc('get_live_intake', {
+        p_workspace_id: workspace.id,
+        p_session_id: sessionId || null,
+        p_before: cursor?.before || null,
+        p_before_id: cursor?.before_id || null,
+        p_limit: 100,
+      }),
+    liveCommerce: (campaignId) =>
+      rpc('get_live_commerce', { p_workspace_id: workspace.id, p_campaign_id: campaignId }),
+    liveContext: async () => {
+      const [catalog, sales] = await Promise.all([
+        rpc('get_catalog_state', { p_workspace_id: workspace.id }),
+        rpc('get_sales_state', { p_workspace_id: workspace.id }),
+      ]);
+      return { catalog, customers: sales.customers, inventory: sales.inventory || [] };
+    },
+    saveLiveCampaign: (p) =>
+      rpc('save_live_campaign', { p_workspace_id: workspace.id, p_payload: p }),
+    saveLiveSession: (p) =>
+      rpc('save_live_session', { p_workspace_id: workspace.id, p_payload: p }),
+    saveLiveIntegrationAccount: (p) =>
+      rpc('save_live_integration_account', { p_workspace_id: workspace.id, p_payload: p }),
+    ingestLiveComments: (sessionId, comments) =>
+      rpc('ingest_live_comments', {
+        p_workspace_id: workspace.id,
+        p_session_id: sessionId,
+        p_comments: comments,
+      }),
+    claimLiveComment: (id) =>
+      rpc('claim_live_comment', { p_workspace_id: workspace.id, p_comment_id: id }),
+    releaseLiveCommentClaim: (id, token) =>
+      rpc('release_live_comment_claim', {
+        p_workspace_id: workspace.id,
+        p_comment_id: id,
+        p_claim_token: token,
+      }),
+    commitLiveSaleTicket: (p, requestId) =>
+      rpc('commit_live_sale_ticket', {
+        p_workspace_id: workspace.id,
+        p_payload: p,
+        p_request_id: requestId,
+      }),
+    voidLiveSaleTicket: (id, date, reason, requestId) =>
+      rpc('void_live_sale_ticket', {
+        p_workspace_id: workspace.id,
+        p_ticket_id: id,
+        p_date: date,
+        p_reason: reason,
+        p_request_id: requestId,
+      }),
+    claimLivePrintJob: (id, requestId) =>
+      rpc('claim_live_print_job', {
+        p_workspace_id: workspace.id,
+        p_job_id: id,
+        p_request_id: requestId,
+      }),
+    finishLivePrintJob: (id, token, outcome, detail, requestId) =>
+      rpc('finish_live_print_job', {
+        p_workspace_id: workspace.id,
+        p_job_id: id,
+        p_lease_token: token,
+        p_outcome: outcome,
+        p_detail: detail,
+        p_request_id: requestId,
+      }),
+    requeueLivePrintJob: (id, reason, requestId) =>
+      rpc('requeue_live_print_job', {
+        p_workspace_id: workspace.id,
+        p_job_id: id,
+        p_reason: reason,
+        p_request_id: requestId,
+      }),
+    watchLive: (onChange, onStatus) => {
+      let channel = supabase.channel(`live:${workspace.id}:${uid()}`);
+      for (const table of [
+        'live_integration_accounts',
+        'live_campaigns',
+        'live_sessions',
+        'live_comments',
+        'live_comment_claims',
+        'live_sale_tickets',
+        'customer_cart_items',
+        'live_print_jobs',
+        'live_session_telemetry',
+      ])
+        channel = channel.on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table, filter: `workspace_id=eq.${workspace.id}` },
+          () => onChange(),
+        );
+      channel.subscribe((status) => onStatus?.(status));
+      return () => {
+        void supabase.removeChannel(channel);
+      };
+    },
     foundationState: async () => {
-      const [catalog, customer, stock, sales] = await Promise.all(['get_catalog_state','get_customer_foundation','get_inventory_foundation','get_sales_state'].map(name => rpc(name, { p_workspace_id: workspace.id })));
+      const [catalog, customer, stock, sales] = await Promise.all(
+        [
+          'get_catalog_state',
+          'get_customer_foundation',
+          'get_inventory_foundation',
+          'get_sales_state',
+        ].map((name) => rpc(name, { p_workspace_id: workspace.id })),
+      );
       return { catalog, customer, stock, sales };
     },
-    saveProductStyle: (p) => rpc('save_product_style', { p_workspace_id: workspace.id, p_payload: p }),
-    saveProductVariant: (p) => rpc('save_product_variant', { p_workspace_id: workspace.id, p_payload: p }),
-    saveProductAlias: (p) => rpc('save_product_alias', { p_workspace_id: workspace.id, p_payload: p }),
-    resolveProductAlias: (query) => rpc('resolve_product_alias', { p_workspace_id: workspace.id, p_query: query }),
-    saveCustomerIdentity: (p) => rpc('save_customer_identity', { p_workspace_id: workspace.id, p_payload: p }),
-    saveCustomerAddress: (p) => rpc('save_customer_address', { p_workspace_id: workspace.id, p_payload: p }),
-    setOrderAddress: (id, addressId) => rpc('set_order_address', { p_workspace_id: workspace.id, p_order_id: id, p_address_id: addressId || null }),
-    saveOrderPaymentIntent: (p) => rpc('save_order_payment_intent', { p_workspace_id: workspace.id, p_payload: p }),
-    voidOrderPaymentIntent: (id, reason) => rpc('void_order_payment_intent', { p_workspace_id: workspace.id, p_id: id, p_reason: reason }),
-    reserveInventory: (p, requestId) => rpc('reserve_inventory', { p_workspace_id: workspace.id, p_payload: p, p_request_id: requestId }),
-    releaseInventoryReservation: (id, date, reason, requestId) => rpc('release_inventory_reservation', { p_workspace_id: workspace.id, p_reservation_id: id, p_date: date, p_reason: reason, p_request_id: requestId }),
-    transferInventoryReservations: (orderId, ids, date, requestId) => rpc('transfer_inventory_reservations', { p_workspace_id: workspace.id, p_order_id: orderId, p_reservation_ids: ids, p_date: date, p_request_id: requestId }),
+    saveProductStyle: (p) =>
+      rpc('save_product_style', { p_workspace_id: workspace.id, p_payload: p }),
+    saveProductVariant: (p) =>
+      rpc('save_product_variant', { p_workspace_id: workspace.id, p_payload: p }),
+    saveProductAlias: (p) =>
+      rpc('save_product_alias', { p_workspace_id: workspace.id, p_payload: p }),
+    resolveProductAlias: (query) =>
+      rpc('resolve_product_alias', { p_workspace_id: workspace.id, p_query: query }),
+    saveCustomerIdentity: (p) =>
+      rpc('save_customer_identity', { p_workspace_id: workspace.id, p_payload: p }),
+    saveCustomerAddress: (p) =>
+      rpc('save_customer_address', { p_workspace_id: workspace.id, p_payload: p }),
+    setOrderAddress: (id, addressId) =>
+      rpc('set_order_address', {
+        p_workspace_id: workspace.id,
+        p_order_id: id,
+        p_address_id: addressId || null,
+      }),
+    saveOrderPaymentIntent: (p) =>
+      rpc('save_order_payment_intent', { p_workspace_id: workspace.id, p_payload: p }),
+    voidOrderPaymentIntent: (id, reason) =>
+      rpc('void_order_payment_intent', {
+        p_workspace_id: workspace.id,
+        p_id: id,
+        p_reason: reason,
+      }),
+    reserveInventory: (p, requestId) =>
+      rpc('reserve_inventory', {
+        p_workspace_id: workspace.id,
+        p_payload: p,
+        p_request_id: requestId,
+      }),
+    releaseInventoryReservation: (id, date, reason, requestId) =>
+      rpc('release_inventory_reservation', {
+        p_workspace_id: workspace.id,
+        p_reservation_id: id,
+        p_date: date,
+        p_reason: reason,
+        p_request_id: requestId,
+      }),
+    transferInventoryReservations: (orderId, ids, date, requestId) =>
+      rpc('transfer_inventory_reservations', {
+        p_workspace_id: workspace.id,
+        p_order_id: orderId,
+        p_reservation_ids: ids,
+        p_date: date,
+        p_request_id: requestId,
+      }),
     salesState: () => rpc('get_sales_state', { p_workspace_id: workspace.id }),
     saveCustomer: (p) => rpc('save_customer', { p_workspace_id: workspace.id, p_payload: p }),
     saveSalesOrder: (p) => rpc('save_sales_order', { p_workspace_id: workspace.id, p_payload: p }),
-    transitionSalesOrder: (id, action, payload, requestId = uid()) => rpc('transition_sales_order', { p_workspace_id: workspace.id, p_order_id: id, p_action: action, p_payload: payload, p_request_id: requestId }),
+    transitionSalesOrder: (id, action, payload, requestId = uid()) =>
+      rpc('transition_sales_order', {
+        p_workspace_id: workspace.id,
+        p_order_id: id,
+        p_action: action,
+        p_payload: payload,
+        p_request_id: requestId,
+      }),
     report: (from, to) =>
       rpc('get_workspace_report', { p_workspace_id: workspace.id, p_from: from, p_to: to }),
     listMembers: () => rpc('list_workspace_members', { p_workspace_id: workspace.id }),

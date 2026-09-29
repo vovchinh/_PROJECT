@@ -1,5 +1,9 @@
 # Kết quả kiểm tra ChiDi ERP V1.1
 
+**25/09/2026 — đang chẩn đoán LIVE:** [audit mới](verification/TIKTOK_LIVE_CONNECTIVITY_AUDIT.md) ghi lỗi adapter chat v3 đã tái hiện, listener tại máy chưa chạy và viewer pipeline còn thiếu. Endpoint LIVE cloud có phản hồi/từ chối anonymous; chưa nghiệm thu Auth/Realtime/LIVE thật. [Runbook kiểm tra](runbooks/TIKTOK_LIVE_TROUBLESHOOTING.md).
+
+**Mốc hiện tại 24/09/2026:** [verification luồng TikTok và bản sửa 011](verification/TIKTOK_CHANNEL_VERIFICATION.md); [mốc Phase C 007/008](verification/PHASE_C_VERIFICATION.md) và [Phase B](verification/PHASE_B_VERIFICATION.md) được giữ riêng. Số liệu 97 kiểm tra bên dưới là hồ sơ V1.1 ngày 11/09, không phải kết quả mới nhất hoặc bằng chứng cloud/thiết bị đã nghiệm thu.
+
 Mốc cập nhật: **11/09/2026**, project React/JavaScript tại thư mục người dùng chỉ định. **97 kiểm tra tự động trong các bộ dưới đây đạt**, gồm quy tắc, SQL, trình duyệt, script Excel và build; không dùng số test của workbook cũ để đại diện cho website. Kết nối cloud thật mới kiểm tra chỉ đọc, chưa nghiệm thu bằng tài khoản đăng nhập.
 
 | Nhóm kiểm tra | Kết quả | Bằng chứng có thể chạy lại |

@@ -1,6 +1,49 @@
 # Các bước đã thực hiện và bước tiếp theo
 
-Cập nhật **11/09/2026**. Đây là nhật ký trạng thái thực tế của project; không coi kiểm thử mô phỏng là đã nghiệm thu Supabase thật.
+Cập nhật **24/09/2026**. Không coi kiểm thử mô phỏng là đã nghiệm thu Supabase, TikTok hoặc máy in thật.
+
+## TikTok ID và kết nối đơn giản
+
+- [x] 011: sửa ID sau yêu cầu kết nối chưa tạo phiên; hủy quyền listener cũ, giữ lịch sử kênh đã có phiên và hỗ trợ lưu thành ID mới.
+- [x] Chưa LIVE hiện **Vui lòng bật live**; listener tự nhận bình luận, không cần duyệt thêm.
+- [x] Provider STREAM_END tự kết thúc phiên/ngắt kênh; retry có chống trùng, giữ bình luận chưa gửi và không coi mất mạng là kết thúc LIVE.
+
+- [x] Dùng lại account theo workspace; username chuẩn hóa/duy nhất, một kênh mặc định và lịch sử kết nối.
+- [x] Lưu TikTok ID → chọn ID → KẾT NỐI LIVE; trường kỹ thuật chuyển sang chế độ thủ công/quản trị.
+- [x] 010: request/outbox/lease, provider xác nhận trước khi tạo campaign theo ngày Việt Nam và session theo phòng thực tế.
+- [x] Bấm lặp/kết nối lại giữ session và STT; chặn kết quả/bình luận từ listener đã hết quyền.
+- [x] Listener theo workspace, xác thực ERP local, giữ adapter và hàng đợi bền vững; manual/simulator còn dùng được.
+- [ ] Áp dụng các migration mới chưa có và nghiệm thu kênh thật theo [hướng dẫn TikTok](docs/TIKTOK_CHANNEL_SETUP.md); lưu [bằng chứng](docs/verification/TIKTOK_CHANNEL_VERIFICATION.md).
+
+Mốc Phase C 007/008 bên dưới được giữ làm lịch sử. Hạng mục FLIVE rộng hơn không mở tiếp trong thay đổi chỉ dành cho luồng kênh/kết nối này.
+
+## Phase C — trạng thái hiện tại
+
+- [x] 007: hồ sơ TikTok không chứa secret, chiến dịch/phiên, bình luận chuẩn hóa, chống trùng, claim 120 giây.
+- [x] Parser xác định SKU/alias/thuộc tính rõ; ambiguity/review, không tự bán hoặc giữ hàng.
+- [x] 008: chốt nguyên tử ticket/giỏ/STT/hold/print job/audit/outbox; replay, VOID và bảo vệ live hold.
+- [x] UI Live · Chốt & In, setup tài khoản, realtime + polling, quyền/workspace và mobile.
+- [x] Hàng đợi in có lease/attempt, in lại không bán lại; xác nhận giấy riêng với commit nghiệp vụ.
+- [x] Worker NDJSON/TikTok và LAN bridge có spool; USB qua driver, raster chữ Việt, đăng nhập ERP local.
+- [x] Kiểm thử database/UI/worker/bridge và cạnh tranh native; [hồ sơ bằng chứng](docs/verification/PHASE_C_VERIFICATION.md).
+- [x] [Hướng dẫn nâng cấp/vận hành/rollback](docs/PHASE_C_LIVE_COMMERCE.md), ba tài liệu kiến trúc và portal.
+- [ ] Xác nhận 006 thành công, áp dụng 007→008 một lần và chạy verify_phase_c.sql trên Supabase thử.
+- [ ] Nghiệm thu tài khoản TikTok đang live, giấy ZYWELL thật và hai workspace Auth thật.
+- [ ] Hoàn tất checklist thiết bị/hosting/backup trước vận hành làm hệ thống chính; chưa mở Phase D.
+
+## Phase B — trạng thái hiện tại
+
+- [x] Giữ SKU IDs/ledger, tạo styles/variants/aliases, resolver phát hiện mơ hồ (004).
+- [x] Giữ khách cũ, thêm identities/addresses thủ công, snapshot đơn và payment plans không ghi tiền (005).
+- [x] Giữ tồn dùng chung với FIFO V2, release/chuyển sang đơn nguyên tử và replay (006).
+- [x] Nối RPC và màn hình Nền tảng thương mại, hiển thị snapshot trong chi tiết đơn.
+- [x] Hồi quy 223 kiểm tra PASS, gồm 100 database Phase B, 12 UI mới và 7 native PostgreSQL concurrency; [nghiệm thu cuối](docs/verification/PHASE_B_VERIFICATION.md).
+- [x] Viết [hướng dẫn nâng cấp/vận hành/rollback](docs/PHASE_B_COMMERCE_FOUNDATION.md), cập nhật ba tài liệu kiến trúc persistent.
+- [ ] Áp dụng 004→005→006 một lần trên Supabase đã có 003 thành công; chạy verify_phase_b.sql.
+- [ ] Nghiệm thu bằng tài khoản thực trong workspace thử, lưu metadata và kết quả hai workspace.
+- [ ] Tiếp tục blocker A1, backup/restore và các action Phase A còn thiếu; Phase C được triển khai riêng theo yêu cầu mới ở trên.
+
+Người dùng đã xác nhận hoàn thành 002/Auth/workspace. Phần dưới là nhật ký **11/09/2026**, không phải yêu cầu chạy lại 002 hoặc đăng ký lại tài khoản.
 
 ## Đã thực hiện
 
@@ -19,7 +62,7 @@ Cập nhật **11/09/2026**. Đây là nhật ký trạng thái thực tế củ
 - [x] Chặn mất dòng Excel thiếu mã; chặn công thức ở input; giữ cờ ngày ước tính và dấu vết trong CSV.
 - [x] Xuất lại dữ liệu 11/09: 17 nhập hàng, 1.566 sản phẩm, 79.043.000 đ tiền hàng, 12 thu chi; SHA-256 nguồn vẫn khớp bản 10/09.
 
-## Việc cần làm trong tài khoản Supabase của bạn
+## Checklist tại mốc V1.1 — lịch sử
 
 1. **Chạy [002_operations.sql](supabase/migrations/002_operations.sql)** trong SQL Editor của project hiện có. Không chạy lại `001_core.sql`. Kiểm tra chỉ đọc hiện chưa tìm thấy RPC của bản nâng cấp.
 2. Mở **START_CHIDI.cmd**, vào **http://localhost:2000**, đăng ký/xác nhận email rồi đăng nhập. Nếu đã có tài khoản thì dùng tài khoản đó. Không gửi mật khẩu qua chat.

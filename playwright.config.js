@@ -6,6 +6,7 @@ export default defineConfig({
   timeout: 30000,
   workers: 1,
   reporter: 'list',
+  outputDir: 'test-results/demo-ui',
   use: {
     baseURL: 'http://127.0.0.1:5199',
     headless: true,

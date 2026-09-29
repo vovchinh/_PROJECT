@@ -1831,6 +1831,23 @@ td.positive strong {
 .sales-toolbar > select { border: 1px solid #d7dfd1; border-radius: 7px; padding: 11px; background: white; max-width: 100%; }
 .sales-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 .foundation-page { display: grid; gap: 20px; min-width: 0; }
+.live-page { display: grid; gap: 20px; min-width: 0; }
+.live-topbar { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.live-topbar > .field { min-width: 220px; flex: 1; max-width: 650px; }
+.live-sync { display: grid; gap: 5px; font-size: 13px; }
+.live-sync small { color: #64796d; }
+.live-comments { display: grid; }
+.live-comment { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 20px; padding: 18px 22px; border-bottom: 1px solid #e3e9e2; }
+.live-comment small { display: block; color: #6a7d70; margin-top: 4px; overflow-wrap: anywhere; }
+.live-comment-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin: 10px 0; }
+.live-comment-action { display: flex; flex-direction: column; align-items: end; gap: 10px; font-size: 13px; }
+.live-suggestion { color: #567261; font-size: 13px; }
+.live-baskets { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); padding: 20px; gap: 16px; }
+.live-basket { border: 1px solid #d8e5db; border-radius: 14px; background: #f6f9f3; padding: 18px; overflow-wrap: anywhere; }
+.live-basket-no { font-size: 32px; color: #245f40; }
+.live-basket h3 { margin: 10px 0 6px; }
+.live-basket small, .live-basket > span { color: #667c6d; font-size: 12px; }
+@media (max-width: 640px) { .live-comment { grid-template-columns: minmax(0,1fr); padding: 16px; gap: 12px; } .live-comment-action { flex-direction: row; justify-content: space-between; align-items: center; } .live-page .panel-head { flex-wrap: wrap; gap: 12px; } .live-page .foundation-tabs .button { flex: 1 1 130px; } .live-topbar > .field { min-width: 0; width: 100%; } }
 .foundation-toolbar, .foundation-tabs, .foundation-actions, .foundation-lookup { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .foundation-toolbar { justify-content: space-between; }
 .foundation-lookup { align-items: end; }

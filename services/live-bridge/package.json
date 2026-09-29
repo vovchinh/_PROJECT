@@ -1,0 +1,26 @@
+{
+  "name": "chidi-local-live-bridge",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "start": "node --env-file-if-exists=.env printer-server.mjs",
+    "worker": "node --env-file-if-exists=.env intake-worker.mjs",
+    "worker:login": "node --env-file-if-exists=.env login-worker.mjs",
+    "worker:supervise": "node --env-file-if-exists=.env intake-supervisor.mjs",
+    "worker:supervise:login": "node --env-file-if-exists=.env login-worker.mjs --supervise",
+    "worker:channels": "node --env-file-if-exists=.env channel-supervisor.mjs",
+    "worker:channels:login": "node --env-file-if-exists=.env login-worker.mjs --channels",
+    "test": "node --test *.test.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.63.0",
+    "pngjs": "7.0.0"
+  },
+  "optionalDependencies": {
+    "tiktok-live-connector": "2.5.0"
+  }
+}

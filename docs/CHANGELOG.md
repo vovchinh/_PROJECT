@@ -1,6 +1,40 @@
 # Lịch sử thay đổi ChiDi Online ERP
 
+## 24/09/2026 — sửa TikTok ID và kết thúc LIVE tự động
+
+- Chẩn đoán lỗi thực tế `TIKTOK_CHANNEL_USED`: không phải regex chặn số, mà 010 khóa đổi username sau mọi yêu cầu CONNECT. 011 cho sửa khi chưa có phiên, hủy yêu cầu/lease cũ trong cùng transaction. Kênh đã có lịch sử giữ nguyên và có nút lưu ID mới.
+- Chưa có LIVE: **Vui lòng bật live**. CONNECT tự chạy listener và nhận bình luận, không có bước người khác phê duyệt.
+- STREAM_END được tách khỏi lỗi mạng: gửi các bình luận đã nhận còn chờ, giữ queue nếu lỗi, rồi kết thúc phiên và ngắt kết nối bằng RPC idempotent. Callback cũ không được kết thúc phiên mới.
+- Lần kết nối mới tách khỏi phiên đã kết thúc, tránh lỗi nguồn ghi đè trạng thái lịch sử. Không thay số STT đã cấp, ticket, giữ tồn, tiền hoặc doanh thu.
+- [Migration 011](../supabase/migrations/011_tiktok_live_end.sql), [hướng dẫn](TIKTOK_CHANNEL_SETUP.md), [verification](verification/TIKTOK_CHANNEL_VERIFICATION.md). Không áp dụng SQL lên Supabase thật trong phiên phát triển.
+
+## 23/09/2026 — TikTok ID và kết nối LIVE đơn giản
+
+- Dùng lại hồ sơ kênh theo workspace, chuẩn hóa username, một kênh mặc định; người bán không tạo campaign/session hoặc nhập thông tin listener.
+- 010 thêm yêu cầu kết nối có chống trùng, outbox và lease; listener kiểm tra LIVE trước, rồi RPC tạo/reuse campaign theo kênh/ngày Việt Nam và phiên theo room thực tế.
+- Ngắt/kết nối lại giữ lịch sử/STT; kết quả và bình luận từ worker cũ bị chặn theo revision/token. Sửa cả đường đổi username qua RPC cũ trong migration mới.
+- Giao diện theo hai ảnh mới: TikTok ID + LƯU/SỬA, nhiều kênh, KẾT NỐI LIVE, trạng thái/thống kê và NGẮT; manual/simulator nằm trong chế độ riêng.
+- [Hướng dẫn](TIKTOK_CHANNEL_SETUP.md), [kiểm thử](verification/TIKTOK_CHANNEL_VERIFICATION.md). Không có OAuth TikTok, DDL cloud hoặc nghiệm thu kênh/máy in thật trong phiên phát triển.
+
 Tài liệu ghi thay đổi theo phiên bản và phân biệt kết quả kiểm tra trên máy với kiểm tra trên Supabase thật. Ngày ghi theo múi giờ vận hành Việt Nam.
+
+## V2 Phase C — 18–21/09/2026
+
+- 007 thêm account TikTok công khai, campaign/session, normalized comments, ingestion dedupe, claim và publication loại token.
+- 008 thêm ticket/cart/STT, CHỐT & IN nguyên tử, live hold dùng tồn chung, VOID, print jobs/attempts và outbox. Không tạo doanh thu hoặc Final Order.
+- Màn hình Live · Chốt & In: parser gợi ý, nhận xử lý, giỏ, hàng đợi in, thiết lập TikTok/máy in, realtime/polling, mobile và phân quyền.
+- Worker local NDJSON/TikTok, đăng nhập ERP có che mật khẩu; USB qua driver và LAN bridge có token/Origin, spool chống gửi trùng attempt, raster tiếng Việt.
+- Hồi quy, native concurrency và metadata/reconciliation; xem [verification](verification/PHASE_C_VERIFICATION.md) và [hướng dẫn](PHASE_C_LIVE_COMMERCE.md).
+- 001–006 không sửa. Không chạy DDL Supabase thật hoặc nghiệm thu TikTok/ZYWELL thật trong phiên này; không triển khai Phase D trở đi.
+
+## V2 Phase B — 17/09/2026
+
+- Migration 004: styles, variant tương thích 1:1 với SKU cũ và alias có phát hiện mơ hồ; giữ nguyên IDs và chứng từ.
+- Migration 005: định danh/địa chỉ khách thủ công, snapshot bất biến khi xác nhận đơn; kế hoạch tiền planned/void không ghi ledger.
+- Migration 006: giữ hàng thủ công cùng lots/FIFO V2, giải phóng/chuyển đủ sang đơn, replay và audit; thay availability của hai RPC trong migration mới.
+- React: Nền tảng thương mại gồm năm tab, quyền theo workspace, Sales Detail hiển thị bản chụp/thiếu lịch sử rõ ràng.
+- Thêm suite database/UI, script metadata chỉ đọc, hướng dẫn nâng cấp và rollback. Xem [kết quả](verification/PHASE_B_VERIFICATION.md) và [hướng dẫn](PHASE_B_COMMERCE_FOUNDATION.md).
+- Không sửa 001/002/003, không chạy DDL cloud, không triển khai phase C trở đi. A1 upgrade 003/55006 và nghiệm thu cloud vẫn được ghi riêng.
 
 ## V1.1 — 11/09/2026 — code và kiểm tra trên máy hoàn tất
 

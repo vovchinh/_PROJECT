@@ -507,7 +507,7 @@ export default function CommerceFoundation({ repo, data, onModalChange }) {
           label: 'Chọn lượt giữ đang hoạt động',
           type: 'multi',
           items: stock.reservations
-            .filter((r) => r.status === 'active')
+            .filter((r) => r.status === 'active' && !r.live_ticket_id)
             .map((r) => ({
               id: r.id,
               name: `${label(products, r.product_id)} × ${r.qty} · ${label(warehouses, r.warehouse_id)} · ${r.reference || r.id.slice(0, 8)}`,
@@ -804,7 +804,7 @@ export default function CommerceFoundation({ repo, data, onModalChange }) {
                     }
                     <small>{named(orders, r.order_id)?.code}</small>
                   </td>
-                  <td>{r.status === 'active' && editButton(() => releaseForm(r), 'Giải phóng')}</td>
+                  <td>{r.live_ticket_id ? 'Quản lý tại Live · Chốt & In' : r.status === 'active' && editButton(() => releaseForm(r), 'Giải phóng')}</td>
                 </tr>
               ))}
             </Table>
