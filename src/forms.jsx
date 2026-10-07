@@ -5,6 +5,12 @@ import { Modal, Field, Select, ErrorMessage } from './components.jsx';
 
 export function DocumentForm({ kind, row, data, repo, onDone, onClose }) {
   const isPurchase = kind === 'purchase';
+  const cashCategories = data.expense_categories?.length
+    ? data.expense_categories.map((c) => ({
+        code: c.code, name: c.name, direction: c.direction,
+        eligible: c.profit_eligible, is_active: c.is_active,
+      }))
+    : CATEGORIES.map(([code, name, direction, eligible]) => ({ code, name, direction, eligible, is_active: true }));
   const [form, setForm] = useState(
     row
       ? { ...row }
@@ -83,7 +89,7 @@ export function DocumentForm({ kind, row, data, repo, onDone, onClose }) {
                       supplier_id: p?.supplier_id || f.supplier_id,
                     }));
                   }}
-                  items={data.products}
+                  items={data.products.filter((p) => !p.archived_at || p.id === form.product_id)}
                 />
               </Field>
               <Field label="Ngày nhận">{input('received_date', 'date')}</Field>
@@ -125,7 +131,7 @@ export function DocumentForm({ kind, row, data, repo, onDone, onClose }) {
                     setForm((f) => ({
                       ...f,
                       direction: e.target.value,
-                      category: e.target.value === 'in' ? 'customer_receipt' : 'packaging',
+                      category: cashCategories.find((c) => c.direction === e.target.value && c.is_active)?.code || '',
                     }))
                   }
                   items={[
@@ -150,9 +156,9 @@ export function DocumentForm({ kind, row, data, repo, onDone, onClose }) {
                 <Select
                   value={form.category || ''}
                   onChange={(e) => set('category', e.target.value)}
-                  items={CATEGORIES.filter((c) => c[2] === form.direction).map((c) => ({
-                    value: c[0],
-                    label: c[1],
+                  items={cashCategories.filter((c) => c.direction === form.direction && (c.is_active || c.code === form.category)).map((c) => ({
+                    value: c.code,
+                    label: `${c.name}${c.eligible ? ' · Chi phí vận hành' : ' · Không tính lợi nhuận'}${c.is_active ? '' : ' · Đã lưu trữ'}`,
                   }))}
                 />
               </Field>
@@ -198,16 +204,20 @@ export function DocumentForm({ kind, row, data, repo, onDone, onClose }) {
     </Modal>
   );
 }
-export function MasterForm({ kind, row, data, repo, onDone, onClose }) {
+export function MasterForm({ kind, row, duplicate = false, data, repo, onDone, onClose }) {
   const labels = {
     suppliers: 'nhà cung cấp',
     products: 'sản phẩm',
+    product_categories: 'nhóm sản phẩm',
     cash_accounts: 'tài khoản tiền',
     warehouses: 'kho hàng',
   };
   const [form, setForm] = useState(
     row
-      ? { ...row }
+      ? duplicate
+        ? { ...row, id: undefined, code: '', name: `${row.name} (bản sao)`, barcode: '',
+            provisional: true, archived_at: null, archived_by: null, archive_reason: null }
+        : { ...row }
       : {
           code: '',
           name: '',
@@ -217,6 +227,9 @@ export function MasterForm({ kind, row, data, repo, onDone, onClose }) {
           opening_date: '',
           opening_confirmed: false,
           note: '',
+          description: '',
+          sort_order: 0,
+          is_active: true,
         },
   );
   const [error, setError] = useState(''),
@@ -240,15 +253,23 @@ export function MasterForm({ kind, row, data, repo, onDone, onClose }) {
     }
   }
   return (
-    <Modal title={`${row ? 'Sửa' : 'Thêm'} ${labels[kind]}`} onClose={onClose}>
+    <Modal title={`${row && !duplicate ? 'Sửa' : 'Thêm'} ${labels[kind]}`} onClose={onClose}>
       <form onSubmit={submit}>
         <div className="form-grid">
-          <Field label="Mã" hint="Mã duy nhất, giữ cố định sau khi tạo.">
-            {input('code', 'text', { required: true, disabled: Boolean(row), maxLength: 80 })}
+          <Field label={kind === 'product_categories' ? 'Mã (tùy chọn)' : 'Mã'} hint="Mã duy nhất, giữ cố định sau khi tạo.">
+            {input('code', 'text', { required: kind !== 'product_categories', disabled: Boolean(row) && !duplicate, maxLength: 80 })}
           </Field>
           <Field label="Tên">{input('name', 'text', { required: true, maxLength: 200 })}</Field>
           {kind === 'products' && (
             <>
+              <Field label="Nhóm sản phẩm">
+                <Select
+                  value={form.category_id || ''}
+                  onChange={(e) => set('category_id', e.target.value)}
+                  items={(data.product_categories || []).filter((c) => !c.archived_at || c.id === form.category_id)}
+                  placeholder="Chưa phân nhóm"
+                />
+              </Field>
               <Field label="Nhà cung cấp mặc định">
                 <Select
                   value={form.supplier_id || ''}
@@ -259,6 +280,15 @@ export function MasterForm({ kind, row, data, repo, onDone, onClose }) {
               <Field label="Giá mua tham khảo (đ)">
                 {input('unit_cost', 'number', { min: 0, max: 9000000000000, step: 1 })}
               </Field>
+              <Field label="Giá bán tham khảo (đ)">
+                {input('sale_price', 'number', { min: 0, max: 9000000000000, step: 1 })}
+              </Field>
+              <Field label="Mã vạch">
+                {input('barcode', 'text', { maxLength: 120 })}
+              </Field>
+              <Field label="URL ảnh HTTPS" span>
+                {input('image_url', 'url', { maxLength: 2048, placeholder: 'https://…' })}
+              </Field>
               <label className="checkbox span-2">
                 <input
                   type="checkbox"
@@ -267,6 +297,24 @@ export function MasterForm({ kind, row, data, repo, onDone, onClose }) {
                 />
                 <span>SKU tạm, chưa xác nhận mẫu / màu / size</span>
               </label>
+            </>
+          )}
+          {kind === 'product_categories' && (
+            <>
+              <Field label="Nhóm cha">
+                <Select
+                  value={form.parent_id || ''}
+                  onChange={(e) => set('parent_id', e.target.value)}
+                  items={(data.product_categories || []).filter((c) => !c.archived_at && c.id !== row?.id)}
+                  placeholder="Không có nhóm cha"
+                />
+              </Field>
+              <Field label="Thứ tự hiển thị">
+                {input('sort_order', 'number', { min: 0, max: 1000000, step: 1 })}
+              </Field>
+              <Field label="Mô tả" span>
+                <textarea rows={3} value={form.description || ''} onChange={(e) => set('description', e.target.value)} maxLength={4000} />
+              </Field>
             </>
           )}
           {kind === 'cash_accounts' && (
@@ -293,14 +341,9 @@ export function MasterForm({ kind, row, data, repo, onDone, onClose }) {
               </div>
             </>
           )}
-          <Field label="Ghi chú" span>
-            <textarea
-              rows={3}
-              value={form.note || ''}
-              onChange={(e) => set('note', e.target.value)}
-              maxLength={4000}
-            />
-          </Field>
+          {kind !== 'product_categories' && <Field label="Ghi chú" span>
+            <textarea rows={3} value={form.note || ''} onChange={(e) => set('note', e.target.value)} maxLength={4000} />
+          </Field>}
         </div>
         <ErrorMessage error={error} />
         <footer className="modal-actions">

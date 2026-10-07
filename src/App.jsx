@@ -32,6 +32,7 @@ import { sampleImport } from './demo-sample.js';
 import {
   Overview,
   Documents,
+  CashManagement,
   Catalog,
   Reconciliation,
   Reports,
@@ -214,30 +215,41 @@ function AuthScreen({ onDemo, recovery = false, onRecovered, sessionError = '' }
   );
 }
 
-function ConfirmAction({ action, repo, onDone, onClose }) {
+function ConfirmAction({ action, repo, onDone, onClose, onCorrected }) {
   const [busy, setBusy] = useState(false),
     [checked, setChecked] = useState(false),
     [reason, setReason] = useState(''),
     [date, setDate] = useState(today()),
-    [error, setError] = useState('');
+    [error, setError] = useState(''),
+    [requestId] = useState(() => crypto.randomUUID());
   const reverse = action.type === 'reverse',
-    reset = action.type === 'reset';
+    reset = action.type === 'reset',
+    correcting = action.type === 'correct',
+    deleting = action.type === 'deleteDraft';
   async function submit(e) {
     e.preventDefault();
     setBusy(true);
     setError('');
     try {
-      if (reset) await repo.reset();
-      else if (reverse) await repo.reverse(action.kind, action.row.id, date, reason);
-      else await repo.post(action.kind, action.row.id);
+      let result;
+      if (reset) result = await repo.reset();
+      else if (deleting) result = await repo.deleteDraft(action.kind, action.row.id, reason, requestId);
+      else if (correcting) result = await repo.correctPosted(action.kind, action.row.id, date, reason, requestId);
+      else if (reverse) result = await repo.reverse(action.kind, action.row.id, date, reason, requestId);
+      else result = await repo.post(action.kind, action.row.id, requestId);
       await onDone(
         reset
           ? 'Đã đặt lại bản chạy thử.'
+          : deleting
+            ? 'Đã xóa nháp; không có phát sinh sổ kho hoặc sổ tiền.'
+          : correcting
+            ? 'Đã đảo chứng từ gốc và tạo bản sửa ở trạng thái nháp.'
           : reverse
             ? 'Đã thêm chứng từ đảo; bản gốc vẫn được giữ.'
             : 'Đã ghi sổ thành công.',
       );
-      onClose();
+      if (correcting) onCorrected(result.replacement);
+      else onClose();
     } catch (e) {
       setError(e.message);
     } finally {
@@ -247,7 +259,8 @@ function ConfirmAction({ action, repo, onDone, onClose }) {
   return (
     <Modal
       title={
-        reset ? 'Đặt lại dữ liệu chạy thử' : reverse ? 'Đảo chứng từ đã ghi' : 'Xác nhận ghi sổ'
+        reset ? 'Đặt lại dữ liệu chạy thử' : deleting ? 'Xóa chứng từ nháp'
+          : correcting ? 'Đảo và tạo bản sửa' : reverse ? 'Đảo chứng từ đã ghi' : 'Xác nhận ghi sổ'
       }
       onClose={onClose}
     >
@@ -256,6 +269,10 @@ function ConfirmAction({ action, repo, onDone, onClose }) {
           <p>
             {reset
               ? 'Thao tác này xóa dữ liệu chạy thử trong trình duyệt hiện tại. File Excel và database Supabase không bị thay đổi. Hãy xuất bản sao trước nếu cần giữ.'
+              : deleting
+                ? 'Phiếu nháp sẽ được đánh dấu đã xóa, giữ dấu vết kiểm toán và không ảnh hưởng tồn kho hoặc tiền.'
+              : correcting
+                ? 'Hệ thống sẽ đảo ảnh hưởng tồn kho hoặc tiền của bản gốc, giữ lịch sử và tạo một bản sửa ở trạng thái nháp để bạn kiểm tra trước khi ghi sổ.'
               : reverse
                 ? 'Hệ thống sẽ thêm chuyển động ngược chiều và lưu lý do. Chứng từ gốc được giữ nguyên.'
                 : 'Chứng từ sẽ ảnh hưởng sổ kho hoặc sổ tiền. Sau khi ghi, bạn không sửa trực tiếp được số lượng và số tiền.'}
@@ -266,17 +283,17 @@ function ConfirmAction({ action, repo, onDone, onClose }) {
               <strong>{money(action.row.total_amount ?? action.row.amount)}</strong>
             </div>
           )}
-          {reverse && (
+          {(reverse || correcting || deleting) && (
             <>
-              <Field label="Ngày đảo">
+              {!deleting && <Field label="Ngày đảo">
                 <input
                   type="date"
                   required
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
-              </Field>
-              <Field label="Lý do đảo">
+              </Field>}
+              <Field label={deleting ? 'Lý do xóa nháp' : 'Lý do đảo'}>
                 <textarea
                   required
                   minLength={10}
@@ -306,12 +323,12 @@ function ConfirmAction({ action, repo, onDone, onClose }) {
             Hủy
           </button>
           <button
-            className={`button ${reverse || reset ? 'danger' : 'primary'}`}
+            className={`button ${reverse || reset || correcting || deleting ? 'danger' : 'primary'}`}
             disabled={!checked || busy}
           >
             {busy ? (
               <LoaderCircle className="spin" size={16} />
-            ) : reverse || reset ? (
+            ) : reverse || reset || correcting || deleting ? (
               <RotateCcw size={16} />
             ) : (
               <Check size={16} />
@@ -493,10 +510,14 @@ export default function App() {
       case 'purchases':
       case 'cash': {
         const kind = current[0] === 'purchases' ? 'purchase' : 'cash';
+        const Component = kind === 'cash' ? CashManagement : Documents;
         return (
-          <Documents
+          <Component
             kind={kind}
             data={data}
+            repo={repo}
+            onChanged={refresh}
+            canManage={canPost}
             canPost={canPost}
             canDraft={['owner', 'manager', 'staff'].includes(data.role)}
             isOwner={isOwner}
@@ -504,6 +525,8 @@ export default function App() {
             onEdit={(r) => openDocument(kind, r)}
             onPost={(r) => setModal({ type: 'post', kind, row: r })}
             onReverse={(r) => setModal({ type: 'reverse', kind, row: r })}
+            onDeleteDraft={(r) => setModal({ type: 'deleteDraft', kind, row: r })}
+            onCorrect={(r) => setModal({ type: 'correct', kind, row: r })}
           />
         );
       }
@@ -511,10 +534,13 @@ export default function App() {
         return (
           <Catalog
             data={data}
+            repo={repo}
+            onChanged={refresh}
             canManage={canPost}
             isOwner={isOwner}
             onCreate={(kind) => setModal({ type: 'master', kind })}
             onEdit={(kind, row) => setModal({ type: 'master', kind, row })}
+            onDuplicate={(row) => setModal({ type: 'master', kind: 'products', row, duplicate: true })}
           />
         );
       case 'sales':
@@ -529,7 +555,7 @@ export default function App() {
         return <Reconciliation data={data} repo={repo} onDone={refresh} isOwner={isOwner} />;
       case 'reports':
         return useCloud ? (
-          <CloudReport repo={repo} from={from} to={to} />
+          <CloudReport repo={repo} data={data} from={from} to={to} />
         ) : (
           <Reports data={data} from={from} to={to} />
         );
@@ -742,14 +768,16 @@ export default function App() {
         <MasterForm
           kind={modal.kind}
           row={modal.row}
+          duplicate={modal.duplicate}
           data={data}
           repo={repo}
           onDone={refresh}
           onClose={closeModal}
         />
       )}
-      {['post', 'reverse', 'reset'].includes(modal?.type) && (
-        <ConfirmAction action={modal} repo={repo} onDone={refresh} onClose={closeModal} />
+      {['post', 'reverse', 'correct', 'deleteDraft', 'reset'].includes(modal?.type) && (
+        <ConfirmAction action={modal} repo={repo} onDone={refresh} onClose={closeModal}
+          onCorrected={(replacement) => setModal({ type: 'document', kind: modal.kind, row: replacement })} />
       )}
     </div>
   );

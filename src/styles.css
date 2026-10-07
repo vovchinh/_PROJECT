@@ -1822,6 +1822,19 @@ td.positive strong {
 }
 
 .sales-hide-period > label, .sales-hide-period > span { display: none; }
+.entity-actions { position: relative; display: inline-block; }
+.entity-actions summary { cursor: pointer; list-style: none; border: 1px solid #d7dfd1; border-radius: 8px; background: #fff; padding: 5px 10px; font-size: 20px; line-height: 1; }
+.entity-actions summary::-webkit-details-marker { display: none; }
+.entity-actions-list { position: absolute; right: 0; z-index: 20; min-width: 150px; padding: 6px; border: 1px solid #d7dfd1; border-radius: 10px; background: #fff; box-shadow: 0 8px 26px #243a2d20; }
+.entity-actions-list button { display: block; width: 100%; padding: 10px 12px; border: 0; border-radius: 6px; background: transparent; color: #283d31; text-align: left; cursor: pointer; white-space: nowrap; }
+.entity-actions-list button:hover,.entity-actions-list button:focus-visible { background: #edf4eb; }
+.expense-tabs { margin-bottom: 14px; }
+.bank-import-controls,.bank-mapping,.bank-selection-bar { display:flex;flex-wrap:wrap;gap:12px;align-items:end;padding:16px; }
+.bank-import-controls label,.bank-mapping label { display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1; }
+.bank-mapping select,.bank-import-controls input { max-width:100%; }
+.bank-selection-bar { justify-content:space-between; }
+.bank-source-highlight { background:#fff8dd; }
+@media (max-width: 640px) { .entity-actions-list { position: fixed; left: 12px; right: 12px; bottom: 12px; min-width: 0; z-index: 80; padding: 14px; border-radius: 16px; box-shadow: 0 0 0 100vmax #0005, 0 8px 26px #243a2d20; } .entity-actions-list button { padding: 14px; font-size: 15px; } }
 .sales-banner { display: flex; align-items: center; gap: 20px; padding: 22px 26px; margin-bottom: 24px; background: #eaf0e4; border: 1px solid #d7e2ce; border-radius: 12px; }
 .sales-banner > div { flex: 1; min-width: 0; }
 .sales-banner p { margin: 7px 0; color: #284c36; line-height: 1.6; }

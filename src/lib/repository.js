@@ -14,6 +14,7 @@ import {
   purchaseTotal,
   validateImport,
   validDate,
+  CATEGORIES,
 } from './domain.js';
 
 const KEY = 'chidi.erp.demo.v1';
@@ -40,6 +41,21 @@ const accountCodes = [
   ['WALLET', 'Ví điện tử'],
   ['OTHER', 'Tài khoản khác'],
 ];
+const expenseKind = (code, direction) => {
+  if (code === 'legacy_purchase_payment') return 'inventory_purchase';
+  if (code === 'owner_withdrawal') return 'owner_withdrawal';
+  if (code === 'capital') return 'owner_capital';
+  if (code === 'legacy_cod') return 'cod_settlement';
+  if (code === 'customer_receipt') return 'customer_receipt';
+  if (direction === 'in') return 'other_receipt';
+  return 'operating_expense';
+};
+const demoExpenseCategories = (workspaceId) => CATEGORIES.map(([code, name, direction, eligible], i) => ({
+  id: code, workspace_id: workspaceId, code, name, direction,
+  category_kind: expenseKind(code, direction), profit_eligible: eligible,
+  is_system: true, is_active: true, description: '', sort_order: i,
+  created_at: now(), updated_at: now(),
+}));
 export function emptyData() {
   const workspace = { id: uid(), name: 'ChiDi · bản chạy thử' };
   return {
@@ -49,6 +65,8 @@ export function emptyData() {
     role: 'owner',
     suppliers: [],
     products: [],
+    product_categories: [],
+    expense_categories: demoExpenseCategories(workspace.id),
     purchase_receipts: [],
     cash_transactions: [],
     stock_movements: [],
@@ -85,7 +103,8 @@ export function demoRepository(storage = globalThis.localStorage) {
     try {
       const value = JSON.parse(raw);
       if (value.version !== 1 || !Array.isArray(value.cash_transactions)) throw Error();
-      return { ...emptySalesData(), ...value };
+      return { ...emptySalesData(), product_categories: [],
+        expense_categories: demoExpenseCategories(value.workspace.id), ...value };
     } catch {
       throw new Error(
         'Dữ liệu chạy thử trong trình duyệt không đọc được. Xuất bản sao đang có trước khi xóa; không tự đặt lại dữ liệu.',
@@ -112,18 +131,18 @@ export function demoRepository(storage = globalThis.localStorage) {
     });
   }
   function saveMaster(data, kind, payload) {
-    if (!['suppliers', 'products', 'warehouses', 'cash_accounts'].includes(kind))
+    if (!['suppliers', 'products', 'product_categories', 'warehouses', 'cash_accounts'].includes(kind))
       throw new Error('Danh mục không hợp lệ.');
     const name = String(payload.name || '').trim(),
       code = String(payload.code || '')
         .trim()
         .toUpperCase();
-    if (!name || name.length > 200 || !code || code.length > 80)
+    if (!name || name.length > 200 || (kind !== 'product_categories' && !code) || code.length > 80)
       throw new Error('Cần mã và tên hợp lệ.');
     const old = data[kind].find((r) => r.id === payload.id);
     if (payload.id && !old) throw new Error('Không tìm thấy danh mục.');
     if (old && old.code !== code) throw new Error('Mã danh mục không được đổi.');
-    if (data[kind].some((r) => r.code === code && r.id !== payload.id))
+    if (code && data[kind].some((r) => r.code === code && r.id !== payload.id))
       throw new Error('Mã đã tồn tại.');
     let extra = {};
     if (kind === 'products') {
@@ -133,6 +152,24 @@ export function demoRepository(storage = globalThis.localStorage) {
         unit_cost: integer(payload.unit_cost ?? 0, 'Giá tham khảo'),
         provisional: Boolean(payload.provisional),
         supplier_id: payload.supplier_id || null,
+        category_id: payload.category_id || null,
+        barcode: payload.barcode?.trim() || null,
+        sale_price: payload.sale_price === '' || payload.sale_price == null ? null : integer(payload.sale_price, 'Giá bán'),
+        image_url: payload.image_url?.trim() || null,
+      };
+      if (extra.category_id && !data.product_categories.some((r) => r.id === extra.category_id && !r.archived_at))
+        throw new Error('Nhóm sản phẩm không hợp lệ hoặc đã lưu trữ.');
+    }
+    if (kind === 'product_categories') {
+      const parentId = payload.parent_id || null;
+      if (parentId && (!data.product_categories.some((r) => r.id === parentId && !r.archived_at) || parentId === payload.id))
+        throw new Error('Nhóm cha không hợp lệ.');
+      extra = {
+        description: String(payload.description || '').trim(),
+        parent_id: parentId,
+        sort_order: integer(payload.sort_order ?? 0, 'Thứ tự', { min: 0 }),
+        is_active: payload.is_active !== false,
+        archived_at: old?.archived_at || null,
       };
     }
     if (kind === 'cash_accounts') {
@@ -159,6 +196,7 @@ export function demoRepository(storage = globalThis.localStorage) {
       name,
       note: String(payload.note || ''),
       created_at: old?.created_at || now(),
+      updated_at: now(),
     };
     if (old) Object.assign(old, row);
     else data[kind].push(row);
@@ -170,6 +208,9 @@ export function demoRepository(storage = globalThis.localStorage) {
     const old = data[table].find((r) => r.id === payload.id);
     if (payload.id && (!old || old.status !== 'draft'))
       throw new Error('Chỉ sửa được chứng từ nháp.');
+    if (kind === 'purchase' && (!old || old.product_id !== payload.product_id) &&
+      data.products.some((p) => p.id === payload.product_id && p.archived_at))
+      throw new Error('CATALOG_ARCHIVED: Khôi phục SKU trước khi tạo phiếu nhập mới.');
     const numeric =
       kind === 'purchase'
         ? {
@@ -200,6 +241,32 @@ export function demoRepository(storage = globalThis.localStorage) {
     audit(data, `${kind}.draft_saved`, row.id);
     return row;
   }
+  function reverseInPlace(data, kind, id, date, reason) {
+    if (!validDate(date) || String(reason).trim().length < 10)
+      throw new Error('Cần ngày và lý do đảo ít nhất 10 ký tự.');
+    const r = data[kind === 'purchase' ? 'purchase_receipts' : 'cash_transactions'].find((row) => row.id === id);
+    if (!r) throw new Error('Không tìm thấy chứng từ.');
+    if (r.status === 'reversed') return r;
+    const originalDate = kind === 'purchase' ? r.received_date : r.transaction_date;
+    if (r.status !== 'posted' || date < originalDate)
+      throw new Error('Chỉ đảo chứng từ đã ghi; ngày đảo không trước ngày gốc.');
+    if (kind === 'purchase') assertPurchaseStockChange(data, r, date, true);
+    const table = kind === 'purchase' ? 'stock_movements' : 'cash_movements';
+    const field = kind === 'purchase' ? 'purchase_id' : 'cash_id';
+    const original = data[table].find((m) => m[field] === id && m.movement_kind === 'post');
+    const reversal = { ...original, id: uid(), movement_kind: 'reversal', created_at: now() };
+    if (kind === 'purchase') Object.assign(reversal, {
+      qty: -original.qty, amount: -original.amount, received_date: date,
+    });
+    else Object.assign(reversal, {
+      direction: original.direction === 'in' ? 'out' : 'in',
+      signed_amount: -original.signed_amount, transaction_date: date,
+    });
+    data[table].push(reversal);
+    r.status = 'reversed'; r.updated_at = now();
+    audit(data, `${kind}.reversed`, id, { reason, date });
+    return r;
+  }
   return {
     mode: 'demo',
     salesState: async () => salesState(read()),
@@ -209,6 +276,104 @@ export function demoRepository(storage = globalThis.localStorage) {
       mutate((d) => transitionSalesOrder(d, id, action, payload, requestId)),
     load: async () => copy(read()),
     saveMaster: async (kind, p) => mutate((d) => saveMaster(d, kind, p)),
+    getExpenseCategories: async () => ({ categories: copy(read().expense_categories), reconciliation: { unmapped_count: 0 } }),
+    saveExpenseCategory: async (payload) => mutate((d) => {
+      const code = String(payload.code || '').trim().toLowerCase();
+      const name = String(payload.name || '').trim();
+      const kind = payload.category_kind || 'operating_expense';
+      const direction = payload.direction || 'out';
+      if (!/^[a-z][a-z0-9_]{0,79}$/.test(code) || !name || name.length > 200)
+        throw new Error('Mã và tên danh mục chi không hợp lệ.');
+      if (!['in', 'out'].includes(direction) || !['operating_expense', 'owner_capital', 'owner_withdrawal', 'transfer', 'loan', 'cod_settlement', 'inventory_purchase', 'customer_receipt', 'other_receipt'].includes(kind))
+        throw new Error('Loại danh mục chi không hợp lệ.');
+      const profitEligible = Boolean(payload.profit_eligible);
+      if (profitEligible && (kind !== 'operating_expense' || direction !== 'out'))
+        throw new Error('Chỉ chi phí vận hành chi ra mới được tính vào lợi nhuận.');
+      const old = d.expense_categories.find((r) => r.id === payload.id);
+      if (payload.id && !old) throw new Error('Danh mục chi không tồn tại.');
+      if (old && (old.code !== code || old.direction !== direction || old.category_kind !== kind))
+        throw new Error('Không đổi mã, chiều tiền hoặc loại nghiệp vụ của danh mục đã tạo.');
+      if (d.expense_categories.some((r) => r.code === code && r.id !== payload.id))
+        throw new Error('Mã danh mục chi đã tồn tại.');
+      const before = old ? { ...old } : null;
+      const row = { ...old, id: old?.id || uid(), workspace_id: d.workspace.id,
+        code, name, direction, category_kind: kind, profit_eligible: profitEligible,
+        description: String(payload.description || '').trim(),
+        sort_order: integer(payload.sort_order ?? 0, 'Thứ tự', { min: 0, max: 1000000 }),
+        is_system: old?.is_system || false, is_active: old?.is_active ?? true,
+        created_at: old?.created_at || now(), updated_at: now() };
+      if (old) Object.assign(old, row); else d.expense_categories.push(row);
+      audit(d, 'expense_category.saved', row.id, { before, after: row });
+      return row;
+    }),
+    setExpenseCategoryArchived: async (id, archived, reason) => mutate((d) => {
+      const row = d.expense_categories.find((r) => r.id === id);
+      if (!row) throw new Error('Danh mục chi không tồn tại.');
+      if (String(reason || '').trim().length < 10) throw new Error('Cần lý do ít nhất 10 ký tự.');
+      row.is_active = !archived; row.updated_at = now();
+      audit(d, archived ? 'expense_category.archived' : 'expense_category.restored', id, { reason });
+      return row;
+    }),
+    deleteExpenseCategory: async (id, reason) => mutate((d) => {
+      const row = d.expense_categories.find((r) => r.id === id);
+      if (!row) throw new Error('Danh mục chi không tồn tại.');
+      if (String(reason || '').trim().length < 10) throw new Error('Cần lý do ít nhất 10 ký tự.');
+      if (row.is_system || d.cash_transactions.some((r) => r.category === row.code) ||
+        d.cash_movements.some((r) => r.category === row.code))
+        throw new Error('CATEGORY_IN_USE: Danh mục đã dùng; hãy lưu trữ.');
+      d.expense_categories = d.expense_categories.filter((r) => r.id !== id);
+      audit(d, 'expense_category.deleted', id, { before: row, reason });
+      return { deleted_id: id };
+    }),
+    getCatalogProductUsage: async (id) => {
+      const data = read();
+      const references = {
+        purchases: data.purchase_receipts.filter((r) => r.product_id === id).length,
+        movements: data.stock_movements.filter((r) => r.product_id === id).length,
+        sales: data.sales_order_lines?.filter((r) => r.product_id === id).length || 0,
+      };
+      return { can_delete: Object.values(references).every((count) => count === 0), references };
+    },
+    setCatalogProductArchived: async (id, archived, reason) => mutate((d) => {
+      const row = d.products.find((r) => r.id === id);
+      if (!row) throw new Error('Không tìm thấy SKU.');
+      if (String(reason || '').trim().length < 10) throw new Error('Cần lý do ít nhất 10 ký tự.');
+      row.archived_at = archived ? now() : null;
+      row.archived_reason = archived ? reason.trim() : null;
+      row.updated_at = now();
+      audit(d, archived ? 'product.archived' : 'product.restored', id, { reason: reason.trim() });
+      return row;
+    }),
+    deleteCatalogProduct: async (id, reason) => mutate((d) => {
+      const row = d.products.find((r) => r.id === id);
+      if (!row) throw new Error('Không tìm thấy SKU.');
+      if (String(reason || '').trim().length < 10) throw new Error('Cần lý do ít nhất 10 ký tự.');
+      if (d.purchase_receipts.some((r) => r.product_id === id) || d.stock_movements.some((r) => r.product_id === id) || d.sales_order_lines?.some((r) => r.product_id === id))
+        throw new Error('PRODUCT_HAS_HISTORY: SKU đã có chứng từ; hãy lưu trữ.');
+      d.products = d.products.filter((r) => r.id !== id);
+      audit(d, 'product.deleted', id, { before: row, reason: reason.trim() });
+      return row;
+    }),
+    setProductCategoryArchived: async (id, archived, reason) => mutate((d) => {
+      const row = d.product_categories.find((r) => r.id === id);
+      if (!row) throw new Error('Không tìm thấy nhóm sản phẩm.');
+      if (String(reason || '').trim().length < 10) throw new Error('Cần lý do ít nhất 10 ký tự.');
+      row.is_active = !archived;
+      row.archived_at = archived ? now() : null;
+      row.updated_at = now();
+      audit(d, archived ? 'product_category.archived' : 'product_category.restored', id, { reason: reason.trim() });
+      return row;
+    }),
+    deleteProductCategory: async (id, reason) => mutate((d) => {
+      const row = d.product_categories.find((r) => r.id === id);
+      if (!row) throw new Error('Không tìm thấy nhóm sản phẩm.');
+      if (String(reason || '').trim().length < 10) throw new Error('Cần lý do ít nhất 10 ký tự.');
+      if (d.products.some((r) => r.category_id === id) || d.product_categories.some((r) => r.parent_id === id))
+        throw new Error('CATEGORY_IN_USE: Nhóm đang được sử dụng; hãy lưu trữ.');
+      d.product_categories = d.product_categories.filter((r) => r.id !== id);
+      audit(d, 'product_category.deleted', id, { before: row, reason: reason.trim() });
+      return row;
+    }),
     createPurchase: async (p) => mutate((d) => create(d, 'purchase', p)),
     createCash: async (p) => mutate((d) => create(d, 'cash', p)),
     post: async (kind, id) =>
@@ -220,6 +385,8 @@ export function demoRepository(storage = globalThis.localStorage) {
         if (r.status === 'posted') return r;
         if (r.status !== 'draft') throw new Error('Chứng từ đã đảo, không ghi lại.');
         if (kind === 'purchase') {
+          if (data.products.some((p) => p.id === r.product_id && p.archived_at))
+            throw new Error('CATALOG_ARCHIVED: Khôi phục SKU trước khi ghi sổ.');
           assertPurchasePost(r, data);
           assertPurchaseStockChange(data, r, r.received_date);
           data.stock_movements.push({
@@ -237,6 +404,7 @@ export function demoRepository(storage = globalThis.localStorage) {
           });
         } else {
           assertCashPost(r, data);
+          const selectedCategory = data.expense_categories.find((c) => c.code === r.category);
           data.cash_movements.push({
             id: uid(),
             workspace_id: data.workspace.id,
@@ -248,6 +416,8 @@ export function demoRepository(storage = globalThis.localStorage) {
             amount: r.amount,
             signed_amount: r.direction === 'in' ? r.amount : -r.amount,
             category: r.category,
+            category_name: selectedCategory?.name || r.category,
+            profit_eligible: Boolean(selectedCategory?.profit_eligible),
             created_at: now(),
           });
         }
@@ -256,40 +426,38 @@ export function demoRepository(storage = globalThis.localStorage) {
         audit(data, `${kind}.posted`, id);
         return r;
       }),
-    reverse: async (kind, id, date, reason) =>
-      mutate((data) => {
-        if (!validDate(date) || String(reason).trim().length < 10)
-          throw new Error('Cần ngày và lý do đảo ít nhất 10 ký tự.');
-        const r = data[kind === 'purchase' ? 'purchase_receipts' : 'cash_transactions'].find(
-          (r) => r.id === id,
-        );
-        if (!r) throw new Error('Không tìm thấy chứng từ.');
-        if (r.status === 'reversed') return r;
-        const originalDate = kind === 'purchase' ? r.received_date : r.transaction_date;
-        if (r.status !== 'posted' || date < originalDate)
-          throw new Error('Chỉ đảo chứng từ đã ghi; ngày đảo không trước ngày gốc.');
-        if (kind === 'purchase') assertPurchaseStockChange(data, r, date, true);
-        const table = kind === 'purchase' ? 'stock_movements' : 'cash_movements';
-        const field = kind === 'purchase' ? 'purchase_id' : 'cash_id';
-        const original = data[table].find((m) => m[field] === id && m.movement_kind === 'post');
-        const reversal = { ...original, id: uid(), movement_kind: 'reversal', created_at: now() };
-        if (kind === 'purchase')
-          Object.assign(reversal, {
-            qty: -original.qty,
-            amount: -original.amount,
-            received_date: date,
-          });
-        else
-          Object.assign(reversal, {
-            direction: original.direction === 'in' ? 'out' : 'in',
-            signed_amount: -original.signed_amount,
-            transaction_date: date,
-          });
-        data[table].push(reversal);
-        r.status = 'reversed';
-        audit(data, `${kind}.reversed`, id, { reason, date });
-        return r;
-      }),
+    reverse: async (kind, id, date, reason) => mutate((data) => reverseInPlace(data, kind, id, date, reason)),
+    deleteDraft: async (kind, id, reason) => mutate((data) => {
+      if (!['purchase', 'cash'].includes(kind)) throw new Error('Loại chứng từ không hợp lệ.');
+      if (String(reason || '').trim().length < 10) throw new Error('Cần lý do xóa nháp ít nhất 10 ký tự.');
+      const row = data[kind === 'purchase' ? 'purchase_receipts' : 'cash_transactions'].find((r) => r.id === id);
+      if (!row || row.status !== 'draft') throw new Error('Chỉ xóa chứng từ đang là nháp.');
+      row.status = 'deleted'; row.deleted_at = now(); row.deleted_by = 'demo-owner';
+      row.delete_reason = reason.trim(); row.updated_at = now();
+      audit(data, `${kind}.draft_deleted`, id, { reason: reason.trim() });
+      return row;
+    }),
+    correctPosted: async (kind, id, date, reason, requestId) => mutate((data) => {
+      if (!['purchase', 'cash'].includes(kind)) throw new Error('Loại chứng từ không hợp lệ.');
+      const prior = data.document_corrections?.find((c) => c.request_id === requestId);
+      if (prior) return { original: data[kind === 'purchase' ? 'purchase_receipts' : 'cash_transactions'].find((r) => r.id === id),
+        replacement: data[kind === 'purchase' ? 'purchase_receipts' : 'cash_transactions'].find((r) => r.id === prior.replacement_id), correction_id: prior.id };
+      const original = data[kind === 'purchase' ? 'purchase_receipts' : 'cash_transactions'].find((r) => r.id === id);
+      if (!original || original.status !== 'posted') throw new Error('Chỉ tạo bản sửa từ chứng từ đã ghi sổ.');
+      const source = { ...original };
+      reverseInPlace(data, kind, id, date, reason);
+      const payload = { ...source, id: undefined, legacy_id: null, source_id: null,
+        import_row_hash: null, provenance: { correction_of: id },
+        [kind === 'purchase' ? 'received_date' : 'transaction_date']: date };
+      const replacement = create(data, kind, payload);
+      const correction = { id: uid(), workspace_id: data.workspace.id, kind,
+        original_id: id, replacement_id: replacement.id, reason: reason.trim(),
+        request_id: requestId, created_at: now() };
+      data.document_corrections ||= [];
+      data.document_corrections.push(correction);
+      audit(data, `${kind}.corrected_draft_created`, replacement.id, correction);
+      return { original, replacement, correction_id: correction.id };
+    }),
     importLegacy: async (payload) =>
       mutate((data) => {
         validateImport(payload);
@@ -413,6 +581,13 @@ export function cloudRepository(workspace, role) {
     ),
   };
   const foundationMigrations = {
+    save_product_category: '013_catalog_management.sql',
+    set_product_category_archived: '013_catalog_management.sql',
+    delete_product_category: '013_catalog_management.sql',
+    save_catalog_product: '013_catalog_management.sql',
+    set_catalog_product_archived: '013_catalog_management.sql',
+    get_catalog_product_usage: '013_catalog_management.sql',
+    delete_catalog_product: '013_catalog_management.sql',
     get_catalog_state: '004_catalog_variants_aliases.sql',
     save_product_style: '004_catalog_variants_aliases.sql',
     save_product_variant: '004_catalog_variants_aliases.sql',
@@ -429,6 +604,18 @@ export function cloudRepository(workspace, role) {
     release_inventory_reservation: '006_inventory_reservations.sql',
     transfer_inventory_reservations: '006_inventory_reservations.sql',
   };
+  const erpMigrations = {
+    get_expense_categories: '014_expense_categories.sql',
+    save_expense_category: '014_expense_categories.sql',
+    set_expense_category_archived: '014_expense_categories.sql',
+    delete_expense_category: '014_expense_categories.sql',
+    delete_draft_document: '015_document_corrections.sql',
+    correct_posted_document: '015_document_corrections.sql',
+    stage_bank_statement: '016_bank_statement_import.sql',
+    get_bank_statement_import: '016_bank_statement_import.sql',
+    classify_bank_statement_row: '016_bank_statement_import.sql',
+    confirm_bank_statement_rows: '016_bank_statement_import.sql',
+  };
   const rpc = async (name, args) => {
     const { data, error } = await supabase.rpc(name, args);
     if (error)
@@ -436,6 +623,8 @@ export function cloudRepository(workspace, role) {
         error.code === 'PGRST202'
           ? liveMigrations[name]
             ? `Chưa có chức năng Phase C trong database. Xem docs/PHASE_C_LIVE_COMMERCE.md và migration ${liveMigrations[name]}. Không chạy lại migration lịch sử.`
+            : erpMigrations[name]
+              ? `Chưa có chức năng quản lý này trong database. Chạy migration ${erpMigrations[name]} theo thứ tự sau 013 rồi tải lại; không chạy lại migration lịch sử.`
             : foundationMigrations[name]
               ? `Chưa có chức năng Phase B trong database. Xem docs/PHASE_B_COMMERCE_FOUNDATION.md và migration ${foundationMigrations[name]}. Không chạy lại migration lịch sử.`
               : [
@@ -759,22 +948,89 @@ export function cloudRepository(workspace, role) {
           return [table, rows];
         }),
       );
-      return { workspace, role, ...Object.fromEntries(entries) };
+      const categories = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data: page, error } = await supabase
+          .from('product_categories')
+          .select('*')
+          .eq('workspace_id', workspace.id)
+          .order('sort_order', { ascending: true })
+          .order('id')
+          .range(offset, offset + 999);
+        if (error) {
+          if (['42P01', 'PGRST205'].includes(error.code)) break;
+          throw new Error(error.message);
+        }
+        categories.push(...page);
+        if (page.length < 1000) break;
+        if (offset >= 49000) throw new Error('Nhóm sản phẩm vượt 50.000 dòng; cần phân trang.');
+      }
+      let expenseCatalog = { categories: [], reconciliation: null };
+      try {
+        expenseCatalog = await rpc('get_expense_categories', { p_workspace_id: workspace.id });
+      } catch (error) {
+        if (!error.message.includes('014_expense_categories.sql')) throw error;
+      }
+      return { workspace, role, ...Object.fromEntries(entries), product_categories: categories,
+        expense_categories: expenseCatalog.categories || [],
+        expense_category_reconciliation: expenseCatalog.reconciliation };
     },
     saveMaster: (kind, payload) =>
-      rpc('save_master', { p_kind: kind, p_payload: addWorkspace(payload) }),
+      kind === 'products'
+        ? rpc('save_catalog_product', { p_workspace_id: workspace.id, p_payload: payload })
+        : kind === 'product_categories'
+          ? rpc('save_product_category', { p_workspace_id: workspace.id, p_payload: payload })
+          : rpc('save_master', { p_kind: kind, p_payload: addWorkspace(payload) }),
+    getCatalogProductUsage: (id) => rpc('get_catalog_product_usage', { p_workspace_id: workspace.id, p_product_id: id }),
+    setCatalogProductArchived: (id, archived, reason) => rpc('set_catalog_product_archived', { p_workspace_id: workspace.id, p_id: id, p_archived: archived, p_reason: reason }),
+    deleteCatalogProduct: (id, reason) => rpc('delete_catalog_product', { p_workspace_id: workspace.id, p_id: id, p_reason: reason }),
+    setProductCategoryArchived: (id, archived, reason) => rpc('set_product_category_archived', { p_workspace_id: workspace.id, p_id: id, p_archived: archived, p_reason: reason }),
+    deleteProductCategory: (id, reason) => rpc('delete_product_category', { p_workspace_id: workspace.id, p_id: id, p_reason: reason }),
+    getExpenseCategories: () => rpc('get_expense_categories', { p_workspace_id: workspace.id }),
+    saveExpenseCategory: (payload) => rpc('save_expense_category', { p_workspace_id: workspace.id, p_payload: payload }),
+    setExpenseCategoryArchived: (id, archived, reason) => rpc('set_expense_category_archived', { p_workspace_id: workspace.id, p_id: id, p_archived: archived, p_reason: reason }),
+    deleteExpenseCategory: (id, reason) => rpc('delete_expense_category', { p_workspace_id: workspace.id, p_id: id, p_reason: reason }),
     createPurchase: (p) => rpc('create_purchase', { p_payload: addWorkspace(p) }),
     createCash: (p) => rpc('create_cash', { p_payload: addWorkspace(p) }),
-    post: (kind, id) =>
-      rpc(kind === 'purchase' ? 'post_purchase' : 'post_cash', { p_id: id, p_request_id: uid() }),
-    reverse: (kind, id, date, reason) =>
+    post: (kind, id, requestId = uid()) =>
+      rpc(kind === 'purchase' ? 'post_purchase' : 'post_cash', { p_id: id, p_request_id: requestId }),
+    reverse: (kind, id, date, reason, requestId = uid()) =>
       rpc('reverse_document', {
         p_kind: kind,
         p_id: id,
-        p_request_id: uid(),
+        p_request_id: requestId,
         p_date: date,
         p_reason: reason,
       }),
+    deleteDraft: (kind, id, reason, requestId = uid()) => rpc('delete_draft_document', {
+      p_workspace_id: workspace.id, p_kind: kind, p_id: id,
+      p_request_id: requestId, p_reason: reason,
+    }),
+    correctPosted: (kind, id, date, reason, requestId = uid()) => rpc('correct_posted_document', {
+      p_workspace_id: workspace.id, p_kind: kind, p_id: id,
+      p_reverse_date: date, p_reason: reason, p_request_id: requestId,
+    }),
+    listBankStatementBatches: async () => {
+      const { data, error } = await supabase.from('bank_statement_batches')
+        .select('id,source_name,source_sha256,row_count,created_at,updated_at')
+        .eq('workspace_id', workspace.id).order('created_at', { ascending: false }).limit(100);
+      if (error) throw new Error(error.code === 'PGRST205'
+        ? 'Chưa có chức năng nhập sao kê. Chạy migration 016_bank_statement_import.sql rồi tải lại.' : error.message);
+      return data;
+    },
+    stageBankStatement: (payload, requestId = uid()) => rpc('stage_bank_statement', {
+      p_workspace_id: workspace.id, p_payload: payload, p_request_id: requestId,
+    }),
+    getBankStatementImport: (batchId, offset = 0, limit = 100) => rpc('get_bank_statement_import', {
+      p_workspace_id: workspace.id, p_batch_id: batchId, p_offset: offset, p_limit: limit,
+    }),
+    classifyBankStatementRow: (rowId, accountId, categoryCode, duplicateReason = null) => rpc('classify_bank_statement_row', {
+      p_workspace_id: workspace.id, p_row_id: rowId, p_account_id: accountId,
+      p_category_code: categoryCode, p_duplicate_reason: duplicateReason,
+    }),
+    confirmBankStatementRows: (batchId, rowIds, requestId = uid()) => rpc('confirm_bank_statement_rows', {
+      p_workspace_id: workspace.id, p_batch_id: batchId, p_row_ids: rowIds, p_request_id: requestId,
+    }),
     importLegacy: (payload) => rpc('import_legacy', { p_payload: addWorkspace(payload) }),
   };
 }

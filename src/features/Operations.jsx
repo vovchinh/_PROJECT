@@ -33,7 +33,7 @@ const exactMoney = (value) =>
       }).format(integerString(value));
 const exactQty = (value) => new Intl.NumberFormat('vi-VN').format(integerString(value));
 
-export function CloudReport({ repo, from, to }) {
+export function CloudReport({ repo, data, from, to }) {
   const [report, setReport] = useState(null),
     [error, setError] = useState(''),
     [loading, setLoading] = useState(true),
@@ -204,7 +204,7 @@ export function CloudReport({ repo, from, to }) {
           >
             {report.cash_categories.map((c) => (
               <tr key={c.category}>
-                <td>{categoryLabel(c.category)}</td>
+                <td>{data?.expense_categories?.find((row) => row.code === c.category)?.name || categoryLabel(c.category)}</td>
                 <td className="numeric">{exactMoney(c.cash_in)}</td>
                 <td className="numeric">{exactMoney(c.cash_out)}</td>
                 <td className="numeric">

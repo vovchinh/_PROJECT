@@ -92,7 +92,10 @@ export function assertCashPost(row, data) {
     throw new Error('Tài khoản chưa xác nhận số dư và ngày mở sổ.');
   if (row.transaction_date < account.opening_date)
     throw new Error('Ngày thu chi trước ngày mở sổ tài khoản.');
-  if (!CATEGORIES.some((c) => c[0] === row.category && c[2] === row.direction))
+  const validCategory = Array.isArray(data.expense_categories)
+    ? data.expense_categories.some((c) => c.code === row.category && c.direction === row.direction && c.is_active)
+    : CATEGORIES.some((c) => c[0] === row.category && c[2] === row.direction);
+  if (!validCategory)
     throw new Error('Nhóm thu chi không khớp chiều tiền.');
   integer(row.amount, 'Số tiền', { min: 1 });
 }
@@ -113,7 +116,7 @@ export function statistics(data, from = '', to = '') {
     pendingPurchases: data.purchase_receipts.filter((r) => r.status === 'draft'),
     pendingCash: data.cash_transactions.filter((r) => r.status === 'draft'),
     expense: sum(
-      cash.filter((r) => CATEGORIES.some((c) => c[0] === r.category && c[3])),
+      cash.filter((r) => r.profit_eligible ?? CATEGORIES.some((c) => c[0] === r.category && c[3])),
       (r) => -Number(r.signed_amount),
     ),
   };

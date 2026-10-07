@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -26,6 +26,8 @@ import {
   Table,
   ExportButton,
   ErrorMessage,
+  Modal,
+  Field,
 } from './components.jsx';
 import {
   money,
@@ -40,14 +42,20 @@ import {
   sum,
 } from './lib/domain.js';
 import { sampleImport } from './demo-sample.js';
+import ExpenseCategories from './features/ExpenseCategories.jsx';
+const BankStatementImport = lazy(() => import('./features/BankStatementImport.jsx'));
 
 const nameOf = (data, table, id) => data[table].find((r) => r.id === id)?.name || 'Chưa xác định';
 const codeOf = (data, id) => data.products.find((r) => r.id === id)?.code || 'Chưa có SKU';
+const cashCategoryName = (data, code) =>
+  data.expense_categories?.find((r) => r.code === code)?.name || categoryLabel(code);
 const searchRows = (rows, search) =>
   rows.filter((r) =>
     JSON.stringify(r).toLocaleLowerCase('vi').includes(search.toLocaleLowerCase('vi')),
   );
-const shortId = (row) => row.legacy_id || `CD-${row.id.slice(0, 8).toUpperCase()}`;
+const shortId = (row) => row.provenance?.kind === 'bank_statement'
+  ? `NH-${String(row.source_id || '').slice(0, 8).toUpperCase()}-${row.provenance.row_number}`
+  : row.legacy_id || `CD-${row.id.slice(0, 8).toUpperCase()}`;
 
 export function Overview({ data, from, to, onNavigate, onSample, mode }) {
   const stats = statistics(data, from, to);
@@ -251,12 +259,16 @@ export function Documents({
   onEdit,
   onPost,
   onReverse,
+  onDeleteDraft,
+  onCorrect,
+  onViewSource,
   canPost,
   isOwner,
   canDraft,
 }) {
   const [search, setSearch] = useState(''),
     [status, setStatus] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const purchase = kind === 'purchase';
   const all = data[purchase ? 'purchase_receipts' : 'cash_transactions'];
   const rows = searchRows(
@@ -269,6 +281,7 @@ export function Documents({
     search,
   )
     .filter((r) => status === 'all' || r.status === status)
+    .filter((r) => purchase || !categoryFilter || r.category === categoryFilter)
     .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const csvRows = purchase
     ? [
@@ -318,7 +331,7 @@ export function Documents({
           r.transaction_date,
           r.description,
           r.direction,
-          categoryLabel(r.category),
+          cashCategoryName(data, r.category),
           r._account,
           r.amount,
           r.status,
@@ -336,6 +349,7 @@ export function Documents({
             ['draft', 'Chờ xác nhận'],
             ['posted', 'Đã ghi sổ'],
             ['reversed', 'Đã đảo'],
+            ['deleted', 'Đã xóa nháp'],
           ].map(([v, l]) => (
             <button key={v} className={status === v ? 'selected' : ''} onClick={() => setStatus(v)}>
               {l}
@@ -345,6 +359,14 @@ export function Documents({
         </div>
         <div className="toolbar">
           <SearchBox value={search} onChange={setSearch} />
+          {!purchase && <select aria-label="Lọc nhóm thu chi" value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}>
+            <option value="">Mọi nhóm thu chi</option>
+            {(data.expense_categories || []).map((c) => <option key={c.id} value={c.code}>{c.name}</option>)}
+          </select>}
+          {(search || status !== 'all' || categoryFilter) && <button className="button secondary" onClick={() => {
+            setSearch('');setStatus('all');setCategoryFilter('');
+          }}>Xóa bộ lọc</button>}
           <ExportButton name={`chidi-${kind}-${today()}.csv`} rows={csvRows} />
           {canDraft && (
             <button className="button primary" onClick={onCreate}>
@@ -404,9 +426,13 @@ export function Documents({
               <>
                 <td>
                   <strong>{r.description || 'Chưa có nội dung'}</strong>
-                  <small>{r.legacy_id ? 'Có tham chiếu nguồn' : 'Nhập trực tiếp'}</small>
+                  <small>{r.provenance?.kind === 'bank_statement'
+                    ? `Sao kê ${r.provenance.source_name} · dòng ${r.provenance.row_number}`
+                    : r.legacy_id ? 'Có tham chiếu nguồn' : 'Nhập trực tiếp'}</small>
+                  {r.provenance?.kind === 'bank_statement' && onViewSource &&
+                    <button className="text-button" onClick={() => onViewSource(r)}>Xem file nguồn</button>}
                 </td>
-                <td>{categoryLabel(r.category)}</td>
+                <td>{cashCategoryName(data, r.category)}</td>
                 <td>{r._account}</td>
                 <td className={`numeric ${r.direction === 'in' ? 'positive' : ''}`}>
                   <strong>
@@ -437,12 +463,20 @@ export function Documents({
                         Ghi sổ
                       </button>
                     )}
+                    <button className="small-button muted" onClick={() => onDeleteDraft(r)}>
+                      Xóa nháp
+                    </button>
                   </>
                 ) : r.status === 'posted' && isOwner ? (
-                  <button className="small-button muted" onClick={() => onReverse(r)}>
-                    <RotateCcw size={14} />
-                    Đảo
-                  </button>
+                  <>
+                    <button className="small-button muted" onClick={() => onReverse(r)}>
+                      <RotateCcw size={14} />
+                      Đảo
+                    </button>
+                    <button className="small-button" onClick={() => onCorrect(r)}>
+                      Đảo + tạo bản sửa
+                    </button>
+                  </>
                 ) : (
                   <span className="muted-text">Đã khóa</span>
                 )}
@@ -459,18 +493,76 @@ export function Documents({
   );
 }
 
-export function Catalog({ data, onCreate, onEdit, isOwner, canManage }) {
+export function CashManagement({ repo, onChanged, canManage, ...documentProps }) {
+  const [tab, setTab] = useState('transactions');
+  const [source, setSource] = useState(null);
+  return <>
+    <div className="segments expense-tabs" role="group" aria-label="Quản lý thu chi">
+      <button className={tab === 'transactions' ? 'selected' : ''} onClick={() => setTab('transactions')}>Giao dịch</button>
+      <button className={tab === 'categories' ? 'selected' : ''} onClick={() => setTab('categories')}>Danh mục chi</button>
+      <button className={tab === 'bank' ? 'selected' : ''} onClick={() => setTab('bank')}>Nhập sao kê</button>
+    </div>
+    {tab === 'transactions'
+      ? <Documents kind="cash" {...documentProps} onViewSource={(row) => {
+          setSource({ batchId: row.provenance.batch_id, rowNumber: row.provenance.row_number });setTab('bank');
+        }} />
+      : tab === 'categories'
+        ? <ExpenseCategories data={documentProps.data} repo={repo} onChanged={onChanged}
+            canManage={canManage} isOwner={documentProps.isOwner} />
+        : <Suspense fallback={<p>Đang tải chức năng sao kê…</p>}>
+            <BankStatementImport data={documentProps.data} repo={repo} onChanged={onChanged}
+              initialBatchId={source?.batchId} initialRowNumber={source?.rowNumber} />
+          </Suspense>}
+  </>;
+}
+
+export function Catalog({ data, repo, onChanged, onCreate, onEdit, onDuplicate, isOwner, canManage }) {
   const [kind, setKind] = useState('products'),
     [search, setSearch] = useState('');
+  const [action, setAction] = useState(null), [reason, setReason] = useState(''),
+    [impact, setImpact] = useState(null), [actionError, setActionError] = useState(''),
+    [busy, setBusy] = useState(false);
   const tabs = [
     ['products', 'Sản phẩm / SKU'],
+    ['product_categories', 'Nhóm sản phẩm'],
     ['suppliers', 'Nhà cung cấp'],
     ['cash_accounts', 'Tài khoản tiền'],
     ['warehouses', 'Kho hàng'],
   ];
-  const rows = searchRows(data[kind], search);
+  const rows = searchRows(data[kind] || [], search);
+  useEffect(() => {
+    if (action?.type !== 'delete' || action.kind !== 'products') return;
+    let active = true;
+    repo.getCatalogProductUsage(action.row.id)
+      .then((value) => { if (active) setImpact(value); })
+      .catch((error) => { if (active) setActionError(error.message); });
+    return () => { active = false; };
+  }, [action, repo]);
+  function openAction(next, event) {
+    const menu = event?.currentTarget.closest('details');
+    if (menu) menu.open = false;
+    setReason('');setImpact(null);setActionError('');setAction(next);
+  }
+  async function confirmAction(event) {
+    event.preventDefault();
+    if (!action || reason.trim().length < 10) return;
+    setBusy(true);setActionError('');
+    try {
+      const { row, type } = action;
+      if (action.kind === 'products') {
+        if (type === 'delete') await repo.deleteCatalogProduct(row.id, reason);
+        else await repo.setCatalogProductArchived(row.id, type === 'archive', reason);
+      } else {
+        if (type === 'delete') await repo.deleteProductCategory(row.id, reason);
+        else await repo.setProductCategoryArchived(row.id, type === 'archive', reason);
+      }
+      await onChanged(`Đã ${type === 'delete' ? 'xóa' : type === 'archive' ? 'lưu trữ' : 'khôi phục'} danh mục.`);
+      setAction(null);
+    } catch (error) { setActionError(error.message); }
+    finally { setBusy(false); }
+  }
   return (
-    <Panel>
+    <><Panel>
       <div className="list-tools">
         <div className="segments">
           {tabs.map(([v, l]) => (
@@ -483,7 +575,7 @@ export function Catalog({ data, onCreate, onEdit, isOwner, canManage }) {
               }}
             >
               {l}
-              <span>{data[v].length}</span>
+              <span>{(data[v] || []).length}</span>
             </button>
           ))}
         </div>
@@ -503,6 +595,8 @@ export function Catalog({ data, onCreate, onEdit, isOwner, canManage }) {
           'Tên',
           kind === 'products'
             ? 'Giá tham khảo'
+            : kind === 'product_categories'
+              ? 'Mô tả / cấp nhóm'
             : kind === 'cash_accounts'
               ? 'Số dư đầu'
               : 'Ghi chú',
@@ -514,12 +608,15 @@ export function Catalog({ data, onCreate, onEdit, isOwner, canManage }) {
         {rows.map((r) => (
           <tr key={r.id}>
             <td className="mono">
-              <strong>{r.code}</strong>
+              <strong>{r.code || '—'}</strong>
             </td>
-            <td>{r.name}</td>
+            <td><strong>{r.name}</strong>{kind === 'products' && r.category_id &&
+              <small>{nameOf(data, 'product_categories', r.category_id)}</small>}</td>
             <td>
               {kind === 'products'
                 ? money(r.unit_cost)
+                : kind === 'product_categories'
+                  ? <>{r.description || '—'}{r.parent_id && <small>Thuộc {nameOf(data, 'product_categories', r.parent_id)}</small>}</>
                 : kind === 'cash_accounts'
                   ? r.opening_confirmed
                     ? money(r.opening_balance)
@@ -527,10 +624,14 @@ export function Catalog({ data, onCreate, onEdit, isOwner, canManage }) {
                   : r.note || '—'}
             </td>
             <td>
-              {kind === 'products' ? (
+              {['products', 'product_categories'].includes(kind) && r.archived_at ? (
+                <Badge status="reversed">Đã lưu trữ</Badge>
+              ) : kind === 'products' ? (
                 <Badge status={r.provisional ? 'draft' : 'posted'}>
                   {r.provisional ? 'SKU tạm' : 'Đã xác nhận SKU'}
                 </Badge>
+              ) : kind === 'product_categories' ? (
+                <Badge status="posted">Đang dùng</Badge>
               ) : kind === 'cash_accounts' ? (
                 <>
                   <Badge status={r.opening_confirmed ? 'posted' : 'draft'}>
@@ -543,7 +644,22 @@ export function Catalog({ data, onCreate, onEdit, isOwner, canManage }) {
               )}
             </td>
             <td>
-              {canManage && (kind !== 'cash_accounts' || isOwner) && (
+              {canManage && ['products', 'product_categories'].includes(kind) ? (
+                <details className="entity-actions">
+                  <summary aria-label={`Thao tác ${r.code || r.name}`}>⋯</summary>
+                  <div className="entity-actions-list">
+                    <button onClick={() => onEdit(kind, r)}>Sửa</button>
+                    {kind === 'products' && <button onClick={() => onDuplicate(r)}>Nhân bản</button>}
+                    <button onClick={(event) => openAction({ kind, row: r, type: r.archived_at ? 'restore' : 'archive' }, event)}>
+                      {r.archived_at ? 'Khôi phục' : 'Lưu trữ'}
+                    </button>
+                    {isOwner && (kind === 'products' ||
+                      (!data.products.some((p) => p.category_id === r.id) &&
+                       !(data.product_categories || []).some((c) => c.parent_id === r.id))) &&
+                      <button onClick={(event) => openAction({ kind, row: r, type: 'delete' }, event)}>Kiểm tra xóa</button>}
+                  </div>
+                </details>
+              ) : canManage && (kind !== 'cash_accounts' || isOwner) && (
                 <button
                   className="icon-button"
                   aria-label={`Sửa ${r.code}`}
@@ -561,6 +677,28 @@ export function Catalog({ data, onCreate, onEdit, isOwner, canManage }) {
         <span>Giá tham khảo không thay đổi đơn giá trên phiếu nhập đã ghi.</span>
       </div>
     </Panel>
+    {action && <Modal title={`${action.type === 'delete' ? 'Kiểm tra xóa' : action.type === 'archive' ? 'Lưu trữ' : 'Khôi phục'} ${action.row.code || action.row.name}`}
+      onClose={() => setAction(null)}>
+      <form onSubmit={confirmAction}>
+        <div className="confirm-body">
+          {action.type === 'delete' && action.kind === 'products' ? (
+            impact ? impact.can_delete ?
+              <p>SKU chưa có chứng từ hoặc lịch sử kho. Xóa sẽ giữ lại bản ghi nhật ký thao tác.</p> :
+              <p>SKU đã có lịch sử nghiệp vụ; hãy lưu trữ để ngừng sử dụng và giữ nguyên chứng từ.</p>
+              : <p>Đang kiểm tra chứng từ, tồn kho và lượt giữ hàng…</p>
+          ) : action.type === 'delete' ? (
+            <p>{data.products.filter((p) => p.category_id === action.row.id).length} sản phẩm đang ở nhóm này. Nhóm đang dùng chỉ có thể lưu trữ.</p>
+          ) : <p>{action.type === 'archive' ? 'Danh mục sẽ ngừng được chọn cho nghiệp vụ mới.' : 'Danh mục sẽ được dùng lại cho nghiệp vụ mới.'} Lịch sử chứng từ vẫn được giữ.</p>}
+          <Field label="Lý do thao tác"><textarea required minLength={10} maxLength={4000} rows={3} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+          <ErrorMessage error={actionError} />
+        </div>
+        <footer className="modal-actions"><button type="button" className="button secondary" onClick={() => setAction(null)}>Hủy</button>
+          <button className={`button ${action.type === 'delete' ? 'danger' : 'primary'}`} disabled={busy || (action.type === 'delete' && action.kind === 'products' && !impact?.can_delete)}>
+            {busy ? 'Đang thực hiện…' : action.type === 'delete' ? 'Xác nhận xóa' : action.type === 'archive' ? 'Lưu trữ' : 'Khôi phục'}</button>
+        </footer>
+      </form>
+    </Modal>}
+    </>
   );
 }
 
@@ -795,9 +933,12 @@ export function Reconciliation({ data, repo, onDone, isOwner }) {
 
 export function Reports({ data, from, to }) {
   const stats = statistics(data, from, to);
-  const rows = CATEGORIES.filter((c) => c[2] === 'out').map((c) => ({
+  const categories = data.expense_categories?.length
+    ? data.expense_categories.filter((c) => c.direction === 'out').map((c) => [c.code, c.name, c.profit_eligible])
+    : CATEGORIES.filter((c) => c[2] === 'out').map((c) => [c[0], c[1], c[3]]);
+  const rows = categories.map((c) => ({
     category: c[1],
-    expense: c[3],
+    expense: c[2],
     amount: sum(
       data.cash_movements.filter(
         (m) => m.category === c[0] && m.transaction_date >= from && m.transaction_date <= to,

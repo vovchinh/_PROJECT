@@ -5,7 +5,7 @@ export function Badge({ status, children }) {
   return (
     <span className={`badge ${status || ''}`}>
       {children ||
-        { draft: 'Chờ xác nhận', posted: 'Đã ghi sổ', reversed: 'Đã đảo' }[status] ||
+        { draft: 'Chờ xác nhận', posted: 'Đã ghi sổ', reversed: 'Đã đảo', deleted: 'Đã xóa nháp' }[status] ||
         status}
     </span>
   );

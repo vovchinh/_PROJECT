@@ -17,6 +17,10 @@
     "test:e2e": "playwright test",
     "check": "npm run test && npm run test:db && npm run test:operations && npm run test:foundation && npm run test:live && npm run build",
     "test:catalog": "node scripts/test-catalog-database.mjs",
+    "test:catalog-management": "node scripts/test-catalog-management.mjs",
+    "test:expense-categories": "node scripts/test-expense-categories.mjs",
+    "test:bank-statement": "node scripts/test-bank-statement-import.mjs",
+    "test:document-corrections": "node scripts/test-document-corrections.mjs",
     "test:customers": "node scripts/test-customer-foundation.mjs",
     "test:inventory": "node scripts/test-inventory-foundation.mjs",
     "test:foundation": "npm run test:catalog && npm run test:customers && npm run test:inventory",
@@ -45,7 +49,8 @@
     "@supabase/supabase-js": "^2.116.0",
     "lucide-react": "^1.44.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "read-excel-file": "^9.3.10"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
