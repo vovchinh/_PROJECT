@@ -1830,9 +1830,17 @@ td.positive strong {
 .entity-actions-list button:hover,.entity-actions-list button:focus-visible { background: #edf4eb; }
 .expense-tabs { margin-bottom: 14px; }
 .bank-import-controls,.bank-mapping,.bank-selection-bar { display:flex;flex-wrap:wrap;gap:12px;align-items:end;padding:16px; }
+.bank-source-tabs { padding:0 16px; }
 .bank-import-controls label,.bank-mapping label { display:flex;flex-direction:column;gap:6px;min-width:150px;flex:1; }
 .bank-mapping select,.bank-import-controls input { max-width:100%; }
 .bank-selection-bar { justify-content:space-between; }
+.bank-currency-confirm { margin:12px 16px; padding:12px 14px; border:1px solid var(--line); border-radius:8px; background:#f7f9f5; color:#253a37; font-size:14px; }
+.bank-currency-confirm input { min-width:18px; height:18px; margin-top:3px; }
+.bank-account-choice { display:flex;flex-direction:column;gap:6px;margin:12px 16px;max-width:480px; }
+.bank-account-choice select { width:100%;max-width:100%; }
+.bank-history-detail { border-top:1px solid var(--line);margin-top:16px;padding-top:16px; }
+.bank-history-heading { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:0 16px; }
+.bank-history-heading h3 { margin:0; }
 .bank-source-highlight { background:#fff8dd; }
 @media (max-width: 640px) { .entity-actions-list { position: fixed; left: 12px; right: 12px; bottom: 12px; min-width: 0; z-index: 80; padding: 14px; border-radius: 16px; box-shadow: 0 0 0 100vmax #0005, 0 8px 26px #243a2d20; } .entity-actions-list button { padding: 14px; font-size: 15px; } }
 .sales-banner { display: flex; align-items: center; gap: 20px; padding: 22px 26px; margin-bottom: 24px; background: #eaf0e4; border: 1px solid #d7e2ce; border-radius: 12px; }

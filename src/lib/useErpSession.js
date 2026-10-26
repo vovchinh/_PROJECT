@@ -22,7 +22,11 @@ export function useErpSession(useCloud) {
   const localRepo = useMemo(() => (useCloud ? null : demoRepository()), [useCloud]);
   const repo = useMemo(
     () =>
-      useCloud ? (chosen ? cloudRepository(chosen.workspaces, chosen.role) : null) : localRepo,
+      useCloud
+        ? chosen && chosen.role !== 'employee'
+          ? cloudRepository(chosen.workspaces, chosen.role)
+          : null
+        : localRepo,
     [useCloud, chosen, localRepo],
   );
   const activeRepo = useRef(repo);

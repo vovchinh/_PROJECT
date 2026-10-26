@@ -24,6 +24,7 @@ import {
   ShoppingBag,
   Users,
   Layers3,
+  Clock3,
 } from 'lucide-react';
 import { cloudConfigured, requestedCloud, supabase } from './lib/repository.js';
 import { today, money, validDate } from './lib/domain.js';
@@ -44,6 +45,8 @@ import { Modal, ErrorMessage, Field } from './components.jsx';
 const SalesWorkspace = lazy(() => import('./features/Sales.jsx'));
 const CommerceFoundation = lazy(() => import('./features/CommerceFoundation.jsx'));
 const LiveCommerce = lazy(() => import('./features/LiveCommerce.jsx'));
+const HRWorkspace = lazy(() => import('./features/hr/HRWorkspace.jsx'));
+const MyAttendancePage = lazy(() => import('./features/hr/MyAttendancePage.jsx'));
 
 const NAV = [
   ['overview', 'Tổng quan', LayoutDashboard, 'Toàn cảnh vận hành'],
@@ -53,6 +56,8 @@ const NAV = [
   ['inventory', 'Kho hàng', Boxes, 'Tồn kho, đã giữ và hàng đang giao'],
   ['cash', 'Thu chi', Wallet, 'Kiểm soát từng khoản tiền'],
   ['catalog', 'Danh mục', Tags, 'Dữ liệu dùng chung cho nghiệp vụ'],
+  ['hr', 'Nhân sự & Tiền lương', Users, 'Hồ sơ, chấm công, nghỉ phép và bảng lương'],
+  ['my-attendance', 'Chấm công của tôi', Clock3, 'Quét mã QR tại cửa hàng và xem giờ công của bạn'],
   ['foundation', 'Nền tảng thương mại', Layers3, 'Biến thể, khách hàng, giữ tồn và kế hoạch thanh toán'],
   ['live', 'Live · Chốt & In', Layers3, 'Chiến dịch, bình luận, giỏ khách và hàng đợi in'],
   ['reconciliation', 'Đối chiếu dữ liệu', FileSearch, 'Bảo toàn nguồn, nhập đúng một lần'],
@@ -484,7 +489,24 @@ export default function App() {
         </button>
       </main>
     );
-  const current = NAV.find((n) => n[0] === page) || NAV[0];
+  if (page === 'my-attendance' || (useCloud && chosen?.role === 'employee')) {
+    if (!useCloud || !chosen) return <main className="setup-screen">
+      <h1>Chấm công QR cần workspace online</h1>
+      <p>Đăng nhập vào workspace đã cấu hình chấm công để dùng camera và xem lịch sử của bạn.</p>
+      <button className="button secondary" onClick={() => navigate('overview')}>Về tổng quan</button>
+    </main>;
+    if (!['owner', 'manager', 'staff', 'employee'].includes(chosen.role)) return <main className="setup-screen">
+      <h1>Không có quyền chấm công QR</h1>
+      <p>Tài khoản này cần quyền nhân viên trong workspace và hồ sơ nhân viên đã liên kết.</p>
+      <button className="button secondary" onClick={() => navigate('overview')}>Về tổng quan</button>
+    </main>;
+    return <Suspense fallback={<main className="loading-screen"><LoaderCircle className="spin" /><p>Đang mở chấm công…</p></main>}>
+      <MyAttendancePage key={contextKey} workspaceId={chosen.workspace_id}
+        workspaceName={chosen.workspaces.name} workspaces={workspaces} chooseWorkspace={chooseWorkspace}
+        isManager={['owner', 'manager'].includes(chosen.role)} />
+    </Suspense>;
+  }
+  const current = NAV.find((n) => n[0] === page.split('/')[0]) || NAV[0];
   const canPost = data && ['owner', 'manager'].includes(data.role),
     isOwner = data?.role === 'owner';
   const openDocument = (kind, row) => setModal({ type: 'document', kind, row });
@@ -551,6 +573,12 @@ export default function App() {
         return <Suspense fallback={<p>Đang mở nền tảng thương mại…</p>}><CommerceFoundation repo={repo} data={data} onModalChange={setSalesModalOpen} /></Suspense>;
       case 'live':
         return <Suspense fallback={<p>Đang mở bàn live…</p>}><LiveCommerce repo={repo} data={data} onModalChange={setSalesModalOpen} /></Suspense>;
+      case 'hr':
+        return <Suspense fallback={<p>Đang mở Nhân sự & Tiền lương…</p>}>
+          <HRWorkspace key={chosen?.workspace_id || 'hr-demo'}
+            workspaceId={chosen?.workspace_id} role={data.role} mode={repo.mode}
+            section={page.split('/')[1] || 'dashboard'} onNavigate={(section) => navigate(`hr/${section}`)} />
+        </Suspense>;
       case 'reconciliation':
         return <Reconciliation data={data} repo={repo} onDone={refresh} isOwner={isOwner} />;
       case 'reports':
@@ -636,7 +664,10 @@ export default function App() {
         )}
         <span className="nav-heading">ĐIỀU HÀNH</span>
         <nav aria-label="Điều hướng chính">
-          {NAV.map(([id, label, Icon]) => (
+          {NAV.filter(([id]) =>
+            (id !== 'hr' || ['owner', 'manager'].includes(chosen?.role || data?.role)) &&
+            (id !== 'my-attendance' || (useCloud && ['owner', 'manager', 'staff', 'employee'].includes(chosen?.role))),
+          ).map(([id, label, Icon]) => (
             <button
               key={id}
               className={current[0] === id ? 'active' : ''}
@@ -705,7 +736,7 @@ export default function App() {
               <h1>{current[1]}</h1>
               <p>{current[3]}</p>
             </div>
-            <div className={`date-controls ${['sales', 'customers', 'inventory', 'foundation', 'live'].includes(current[0]) ? 'sales-hide-period' : ''}`}>
+            <div className={`date-controls ${['sales', 'customers', 'inventory', 'foundation', 'live', 'hr'].includes(current[0]) ? 'sales-hide-period' : ''}`}>
               <label>
                 Kỳ báo cáo
                 <input

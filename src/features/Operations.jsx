@@ -13,8 +13,9 @@ import {
 import { categoryLabel, dateLabel, validDate } from '../lib/domain.js';
 
 const roleOptions = [
-  { value: 'viewer', label: 'Chỉ xem' },
-  { value: 'staff', label: 'Nhân viên lập phiếu' },
+  { value: 'employee', label: 'Nhân viên · chỉ dữ liệu cá nhân' },
+  { value: 'viewer', label: 'Chỉ xem ERP toàn workspace' },
+  { value: 'staff', label: 'Vận hành ERP · quyền rộng' },
   { value: 'manager', label: 'Quản lý / ghi sổ' },
   { value: 'owner', label: 'Chủ shop' },
 ];
@@ -83,6 +84,25 @@ export function CloudReport({ repo, data, from, to }) {
       </Panel>
     );
   if (!report) return null;
+  if (report.cash_restricted) return (
+    <>
+      <div className="soft-note" role="status">
+        Dữ liệu Thu Chi trong kỳ có chứng từ nhân sự. Chỉ owner/manager được xem số dư và dòng tiền; báo cáo kho vẫn hiển thị bên dưới.
+      </div>
+      <Panel title="Kho nhận theo SKU đến cuối kỳ" note="Chỉ hiển thị dữ liệu kho theo quyền hiện tại.">
+        <Table headers={['SKU', 'Sản phẩm', 'SL trong kỳ', 'Giá trị trong kỳ', 'SL cuối kỳ', 'Giá trị cuối kỳ']}
+          empty={!report.stock_by_sku?.length}>
+          {(report.stock_by_sku || []).map((item) => <tr key={item.product_id}>
+            <td className="mono">{item.code}</td><td>{item.name}</td>
+            <td className="numeric">{exactQty(item.qty_in_period)}</td>
+            <td className="numeric">{exactMoney(item.amount_in_period)}</td>
+            <td className="numeric">{exactQty(item.qty_as_of)}</td>
+            <td className="numeric">{exactMoney(item.amount_as_of)}</td>
+          </tr>)}
+        </Table>
+      </Panel>
+    </>
+  );
   const o = report.overview;
   const csvRows = [
     [
@@ -268,7 +288,7 @@ export function TeamManagement({ repo, data, onChanged }) {
     [error, setError] = useState(''),
     [message, setMessage] = useState(''),
     [email, setEmail] = useState(''),
-    [role, setRole] = useState('viewer'),
+    [role, setRole] = useState('employee'),
     [busy, setBusy] = useState(false),
     [action, setAction] = useState(null),
     [revision, setRevision] = useState(0);
@@ -302,7 +322,7 @@ export function TeamManagement({ repo, data, onChanged }) {
     try {
       await repo.addMember(email.trim(), role);
       setEmail('');
-      setRole('viewer');
+      setRole('employee');
       setMessage('Đã cấp quyền cho tài khoản đã đăng ký.');
       setRevision((n) => n + 1);
       await onChanged();

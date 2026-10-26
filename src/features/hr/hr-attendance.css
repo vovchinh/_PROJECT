@@ -1,0 +1,11 @@
+.hr-records { display: grid; gap: 16px; min-width: 0; }
+.hr-records .panel { min-width: 0; }
+.hr-records-toolbar { padding: 14px; border: 1px solid #dfe7f1; border-radius: 13px; background: #fff; }
+.hr-records-toolbar .field { margin: 0; }
+.hr-records-state { color: #64748b; font-size: 13px; padding: 14px 2px; }
+.hr-record-flags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.hr-record-flags > span { border-radius: 99px; background: #fff1e3; color: #94601c; padding: 3px 7px; font-size: 10px; }
+.hr-record-form-note { align-self: center; color: #677891; font-size: 12px; line-height: 1.5; }
+.hr-record-fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.hr-record-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.hr-records .table-scroll table { min-width: 840px; }

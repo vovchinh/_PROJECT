@@ -66,7 +66,7 @@ test('create masters, draft a receipt, post exactly once, reverse without deleti
   await page.getByRole('button', { name: /Sản phẩm \/ SKU/ }).click();
   await page.getByRole('button', { name: 'Thêm danh mục' }).click();
   dialog = page.getByRole('dialog');
-  await dialog.getByLabel(/^Mã/).fill('JEAN-TEST');
+  await dialog.getByLabel(/^Mã(?! vạch)/).fill('JEAN-TEST');
   await dialog.getByLabel('Tên', { exact: true }).fill('Jean xanh size M');
   await dialog
     .getByLabel('Nhà cung cấp mặc định')

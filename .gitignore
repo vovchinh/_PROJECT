@@ -9,3 +9,5 @@ test-results/
 playwright-report/
 *.log
 __pycache__/
+# Private bank-statement samples remain local for parser verification.
+docs/SaoKeTK*

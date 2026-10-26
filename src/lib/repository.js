@@ -612,6 +612,7 @@ export function cloudRepository(workspace, role) {
     delete_draft_document: '015_document_corrections.sql',
     correct_posted_document: '015_document_corrections.sql',
     stage_bank_statement: '016_bank_statement_import.sql',
+      stage_pdf_bank_statement_verified: '022_pdf_bank_account_cctg_exclusion.sql',
     get_bank_statement_import: '016_bank_statement_import.sql',
     classify_bank_statement_row: '016_bank_statement_import.sql',
     confirm_bank_statement_rows: '016_bank_statement_import.sql',
@@ -1010,15 +1011,26 @@ export function cloudRepository(workspace, role) {
       p_workspace_id: workspace.id, p_kind: kind, p_id: id,
       p_reverse_date: date, p_reason: reason, p_request_id: requestId,
     }),
-    listBankStatementBatches: async () => {
-      const { data, error } = await supabase.from('bank_statement_batches')
-        .select('id,source_name,source_sha256,row_count,created_at,updated_at')
-        .eq('workspace_id', workspace.id).order('created_at', { ascending: false }).limit(100);
+    listBankStatementBatches: async (offset = 0, limit = 20) => {
+      if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1 || limit > 100)
+        throw new Error('Trang lịch sử nhập không hợp lệ.');
+      const page = (columns) => supabase.from('bank_statement_batches')
+        .select(columns, { count: 'exact' }).eq('workspace_id', workspace.id)
+        .order('created_at', { ascending: false }).order('id', { ascending: false })
+        .range(offset, offset + limit - 1);
+      let { data, count, error } = await page('id,source_format,source_sha256,row_count,created_at,updated_at');
+      if (error && /source_format/i.test(error.message || '')) {
+        ({ data, count, error } = await page('id,source_sha256,row_count,created_at,updated_at'));
+        data = data?.map((batch) => ({ ...batch, source_format: 'excel' }));
+      }
       if (error) throw new Error(error.code === 'PGRST205'
         ? 'Chưa có chức năng nhập sao kê. Chạy migration 016_bank_statement_import.sql rồi tải lại.' : error.message);
-      return data;
+      return { rows: data || [], total: count || 0 };
     },
     stageBankStatement: (payload, requestId = uid()) => rpc('stage_bank_statement', {
+      p_workspace_id: workspace.id, p_payload: payload, p_request_id: requestId,
+    }),
+    stagePdfBankStatementVerified: (payload, requestId = uid()) => rpc('stage_pdf_bank_statement_verified', {
       p_workspace_id: workspace.id, p_payload: payload, p_request_id: requestId,
     }),
     getBankStatementImport: (batchId, offset = 0, limit = 100) => rpc('get_bank_statement_import', {

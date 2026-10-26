@@ -1,5 +1,9 @@
 # Hướng dẫn sử dụng V1
 
+**Chấm công QR (V2, chưa xác minh trên Supabase thật):** owner/manager tạo cửa hàng, phân công nhân viên, gắn ca và mở kiosk; nhân viên đã liên kết tài khoản quét giờ vào/ra. Xem [hướng dẫn thiết lập và vận hành chấm công QR](HR_QR_ATTENDANCE.md). Bản quét vẫn là chấm công nháp chờ quản lý xác nhận.
+
+**Nhập sao kê Techcombank PDF (bản V2 đang kiểm thử):** xem [hướng dẫn nhập PDF vào Thu Chi](TECHCOMBANK_PDF_IMPORT.md). Bảng CCTG trong mẫu được bỏ qua; các giao dịch TKTT có thể tiếp tục sau khi xác nhận loại trừ, chọn Tài khoản ERP và kiểm tra từng dòng. Khu vực **Lịch sử nhập sao kê** mở lại lần nhập Excel/PDF để phân loại hoặc xem phiếu đã ghi.
+
 **24/09/2026 — bản sửa 011:** ID có số được hỗ trợ; lỗi khóa ID sau CONNECT được sửa khi chưa có phiên. Chưa LIVE hiện **Vui lòng bật live**; LIVE kết thúc tự ngắt. Bấm kết nối sẽ tự nhận bình luận khi listener đã chạy, không cần người khác duyệt. Xem [cách nâng cấp và vận hành](TIKTOK_CHANNEL_SETUP.md).
 
 **23/09/2026:** màn hình TikTok dùng ba bước **lưu ID → chọn kênh → KẾT NỐI LIVE**, không yêu cầu người bán tạo chiến dịch/phiên. Xem [hướng dẫn TikTok mới](TIKTOK_CHANNEL_SETUP.md). Chốt/giữ hàng/in lại theo [hướng dẫn livestream/máy in](PHASE_C_LIVE_COMMERCE.md); bình luận chưa tạo bán hoặc doanh thu.

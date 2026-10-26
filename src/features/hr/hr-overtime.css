@@ -1,0 +1,44 @@
+.hr-overtime-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.hr-overtime-filters > * {
+  min-width: 170px;
+}
+.hr-overtime table td small {
+  display: block;
+  color: var(--color-text-muted, #64748b);
+  margin-top: 3px;
+}
+.hr-overtime-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hr-overtime-form {
+  display: grid;
+  gap: 14px;
+}
+.hr-overtime-form > p,
+.hr-overtime-form > .field,
+.hr-overtime-form > .inline-error {
+  margin-inline: 20px;
+}
+.hr-overtime-form > p {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
+@media (max-width: 650px) {
+  .hr-overtime-filters {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .hr-overtime-actions {
+    min-width: 150px;
+  }
+}
